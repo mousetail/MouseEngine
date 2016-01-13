@@ -1,0 +1,10 @@
+A room is a object:
+	Make property Name of kind text
+	Floor is "yellow"
+The Bedroom is a room:
+	Name is "Bedroom"
+	Description is "A ordinary room"
+#	k is bla
+	To start game:
+		return 1
+	Floor is "pink"

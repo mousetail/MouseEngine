@@ -1,0 +1,15 @@
+﻿<Window x:Class="ViewBytes.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:ViewBytes"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="646.429" Width="816.071">
+    <Grid Margin="0,0,-198,-139">
+        <ScrollViewer x:Name="Scroll1" HorizontalAlignment="Left" Height="614" VerticalAlignment="Top" Width="800" Initialized="fire">
+            <Label x:Name="label" Content="Label" Height="46" Width="115"/>
+        </ScrollViewer>
+
+    </Grid>
+</Window>

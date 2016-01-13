@@ -1,0 +1,1 @@
+C:\python32\python.exe C:\Users\Maurits\Documents\gluxtest output.ulx
