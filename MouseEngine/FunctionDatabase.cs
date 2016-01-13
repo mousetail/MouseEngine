@@ -224,7 +224,7 @@ namespace MouseEngine.Lowlevel
     class Opcode: IOpcode
     {
         opcodeType type;
-        int[] addressmodes;
+        addressMode[] addressmodes;
         int[] arguments;
         Substitution?[] substitutions;
         public Opcode(opcodeType type, int[] addressmodes, int[] arguments, Substitution?[] substitutions)
@@ -234,58 +234,14 @@ namespace MouseEngine.Lowlevel
             this.arguments = arguments;
             this.substitutions = substitutions;
         }
-        /*
-        opcodeType code;
-        Argument[] arguments;
-        int argindex;
-        public Opcode(opcodeType code, int argindex, params Argument[] arguments)
+        
+        
+
+        static byte[] makeaddrict(addressMode[] modes)
         {
-            this.code = code;
-            this.arguments = arguments;
-            this.argindex = argindex;
-            Console.Write("length of arguments: ");
-            Console.WriteLine(arguments.Length);
-        }
+            byte[] tmp = new byte[(modes.Length + 1) / 2];
 
-        public UnsubstitutedBytes getBytecode(Dictionary<string, string> arguments)
-        {
-            List<byte> start = new List<byte>();
-            List<addressMode> modes=new List<addressMode>();
-            start.AddRange(code.toBytes());
-            List<byte> argumentsBytes = new List<byte>();
-            List<Substitution> substitutions=new List<Substitution>();
-            int index = 0;
-            Console.Write("This is the number of arguments ");
-            Console.WriteLine(this.arguments.Length);
-            foreach (Argument b in this.arguments)
-            {
-                
-                if (b.type is IntValueKind)
-                {
-                    Console.WriteLine("I have an int value argument");
-                    modes.Add(addressMode.constint);
-                    substitutions.Add(new Substitution(arguments.Count, substitutionType.argumentN, substitutionRank.FunctionOrder, argindex + index)); //scary dinosour
-                    argumentsBytes.AddRange(Writer.toBytes(255255));
-
-                }
-                else
-                {
-                    Console.WriteLine("CAn't find");
-                    Console.WriteLine(b);
-                    throw new InvalidProgramException("The program is wrong");
-                }
-            }
-            start.AddRange(makeaddrict(modes));
-            start.AddRange(argumentsBytes);
-            return new UnsubstitutedBytes(start.ToArray(),substitutions.ToArray());
-
-        }*/
-
-        static byte[] makeaddrict(List<addressMode> modes)
-        {
-            byte[] tmp = new byte[(modes.Count + 1) / 2];
-
-            for (int i=0; i<modes.Count; i++)
+            for (int i=0; i<modes.Length; i++)
             {
                 if ((i % 2) == 0)
                 {
@@ -300,5 +256,34 @@ namespace MouseEngine.Lowlevel
             }
             return tmp;
         }
+
+        public UnsubstitutedBytes getBytecode(Dictionary<string, string> args)
+        {
+            List<byte> tmp = new List<byte>();
+            List<Substitution> subs= new List<Substitution>();
+            tmp.AddRange(type.toBytes());
+            tmp.AddRange(makeaddrict(addressmodes));
+            for (int i; i < arguments.Length, i++) {
+                tmp.AddRange(Writer.toBytes(arguments[i]));
+                if (substitutions[i]!=null)
+                {
+                    Substitution sub = (Substitution)substitutions[i];
+                    sub.position = i * 4;
+                    subs.Add(sub);
+                }
+            }
+            return new UnsubstitutedBytes(tmp.ToArray(), subs.ToArray());
+            
+            
+        }
+    }
+
+    class ArgumentOpcode: IOpcode {
+        ArgumentValue?[] existingValues;
+        opcodeType type;
+        public ArgumentOpcode (opcodeType type, ArgumentValue?[] existingValues)
+        {
+
+        } 
     }
 }
