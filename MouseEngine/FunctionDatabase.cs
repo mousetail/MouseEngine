@@ -53,7 +53,7 @@ namespace MouseEngine.Lowlevel
     {
         //static Function print = new Function(new Argument[] { new Argument("text",ClassDatabase.str) },);
 
-        public static Phrase returnf = new Phrase(new Argument[] { new Argument("value", ClassDatabase.integer) }, new MultiStringMatcher(new string[1] { "value" }, "return", ""), new Opcode(opcodeType.returnf, 0, new Argument("value",ClassDatabase.integer)));
+        public static Phrase returnf = new Phrase(new Argument[] { new Argument("value", ClassDatabase.integer) }, new MultiStringMatcher(new string[1] { "value" }, "return", ""), new Opcode(opcodeType.returnf, (null) ));
 
         internal Argument[] arguments;
         Matcher matcher;
@@ -84,9 +84,9 @@ namespace MouseEngine.Lowlevel
             return matcher.match(s, dtb);
         }
 
-        public SubstitutedPhrase toSubstituedPhrase(Dictionary<string, string> arguments)
+        public SubstitutedPhrase toSubstituedPhrase(IEnumerable<ArgumentValue> arguments)
         {
-            return new SubstitutedPhrase(this, arguments);
+            return new SubstitutedPhrase(this, arguments.ToList());
         }
 
         public override string ToString()
@@ -97,22 +97,23 @@ namespace MouseEngine.Lowlevel
     internal class SubstitutedPhrase: IByteable {
 
 
-        Dictionary<string, string> argValues;
+        List<ArgumentValue> argValues;
         Phrase parent;
         
-        internal SubstitutedPhrase(Phrase f, Dictionary<string, string> arguments)
+        internal SubstitutedPhrase(Phrase f, List<ArgumentValue> values)
         {
             parent = f;
-            argValues = arguments;
+            argValues = values;
         }
 
-        public virtual byte[] toBytes()
+        public virtual IUnsubstitutedBytes toBytes()
         {
+            Queue<ArgumentValue> argQue = new Queue<ArgumentValue>(argValues);
             List<byte> tmp=new List<byte>();
             List<Substitution> substitutions=new List<Substitution>();
             foreach (Opcode a in parent.codes)
             {
-                UnsubstitutedBytes b = a.getBytecode(argValues);
+                IUnsubstitutedBytes b = a.getBytecode(argQue);
                 foreach (Substitution sub in b.substitutions)
                 {
                     Substitution nsub = sub;
@@ -140,7 +141,7 @@ namespace MouseEngine.Lowlevel
                 }
             }
 
-            return final;
+            return new UnsubstitutedBytes(final, substitutions.ToArray());
         }
     }
 
@@ -158,9 +159,9 @@ namespace MouseEngine.Lowlevel
         {
             content.Add(num);
         }
-        public void add(Phrase p, Dictionary<string, string> arguments)
+        public void add(Phrase p, IEnumerable<ArgumentValue> args)
         {
-            content.Add(p.toSubstituedPhrase(arguments));
+            content.Add(p.toSubstituedPhrase(args));
         }
         public override string ToString()
         {
@@ -186,7 +187,7 @@ namespace MouseEngine.Lowlevel
     {
         public string name;
 
-        public Function(CodeBlock code, string name):base(new Argument[] { }, new StringMatcher(name), new Opcode(opcodeType.call,0,new Argument("Value",ClassDatabase.integer)) )
+        public Function(CodeBlock code, string name):base(new Argument[] { }, new StringMatcher(name), new Opcode(opcodeType.call,(null) ))
         {
             inside = code;
             this.name = name;
@@ -215,7 +216,7 @@ namespace MouseEngine.Lowlevel
 
     interface IOpcode
     {
-        UnsubstitutedBytes getBytecode(Dictionary<string, string> args);
+        IUnsubstitutedBytes getBytecode(Queue<ArgumentValue> input);
         
     }
 
@@ -223,21 +224,11 @@ namespace MouseEngine.Lowlevel
 
     class Opcode: IOpcode
     {
-        opcodeType type;
-        addressMode[] addressmodes;
-        int[] arguments;
-        Substitution?[] substitutions;
-        public Opcode(opcodeType type, int[] addressmodes, int[] arguments, Substitution?[] substitutions)
-        {
-            this.type = type;
-            this.addressmodes = addressmodes;
-            this.arguments = arguments;
-            this.substitutions = substitutions;
-        }
+        
         
         
 
-        static byte[] makeaddrict(addressMode[] modes)
+        static byte[] makeaddrict(ArgumentValue[] modes)
         {
             byte[] tmp = new byte[(modes.Length + 1) / 2];
 
@@ -245,11 +236,11 @@ namespace MouseEngine.Lowlevel
             {
                 if ((i % 2) == 0)
                 {
-                    tmp[i / 2] += (byte)modes[i];
+                    tmp[i / 2] += (byte)modes[i].getMode();
                 }
                 else
                 {
-                    tmp[i / 2] += (byte)(16 * (byte)modes[i]);
+                    tmp[i / 2] += (byte)(16 * (byte)modes[i].getMode());
                 }
                 Console.Write(tmp[i / 2]);
                 Console.WriteLine(" is the last value of TMP");
@@ -257,33 +248,47 @@ namespace MouseEngine.Lowlevel
             return tmp;
         }
 
-        public UnsubstitutedBytes getBytecode(Dictionary<string, string> args)
-        {
-            List<byte> tmp = new List<byte>();
-            List<Substitution> subs= new List<Substitution>();
-            tmp.AddRange(type.toBytes());
-            tmp.AddRange(makeaddrict(addressmodes));
-            for (int i; i < arguments.Length, i++) {
-                tmp.AddRange(Writer.toBytes(arguments[i]));
-                if (substitutions[i]!=null)
-                {
-                    Substitution sub = (Substitution)substitutions[i];
-                    sub.position = i * 4;
-                    subs.Add(sub);
-                }
-            }
-            return new UnsubstitutedBytes(tmp.ToArray(), subs.ToArray());
-            
-            
-        }
-    }
-
-    class ArgumentOpcode: IOpcode {
         ArgumentValue?[] existingValues;
         opcodeType type;
-        public ArgumentOpcode (opcodeType type, ArgumentValue?[] existingValues)
+        public Opcode (opcodeType type, ArgumentValue?[] existingValues)
         {
+            this.type = type;
+            this.existingValues = existingValues;
+        }
 
-        } 
+        public IUnsubstitutedBytes getBytecode(Queue<ArgumentValue> values)
+        {
+            List<byte> bytes= new List<byte>();
+            List<Substitution> subs=new List<Substitution>();
+            bytes.AddRange(type.toBytes());
+            List<ArgumentValue> args = new List<ArgumentValue>();
+            ArgumentValue current;
+            for (int i=0; i<existingValues.Length; i++)
+            {
+                if (existingValues[i] != null)
+                {
+                    current = (ArgumentValue)existingValues[i];
+                }
+                else
+                {
+                    current = values.Dequeue();
+                }
+                args.Add(current);
+            }
+            bytes.AddRange(makeaddrict(args.ToArray()));
+            for (int i=0; i<args.Count; i++)
+            {
+                Substitution? sub=args[i].getSubstitution(bytes.Count);
+                if (sub != null)
+                {
+                    subs.Add((Substitution)sub);
+                }
+                bytes.AddRange(args[i].getData());
+            }
+
+            return new UnsubstitutedBytes(bytes.ToArray(), subs.ToArray());
+
+
+        }
     }
 }

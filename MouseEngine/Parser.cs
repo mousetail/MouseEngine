@@ -209,18 +209,8 @@ namespace MouseEngine
                 return pStatus.Finished;
             }
 
-            foreach (Phrase m in fdtb)
-            {
-                if (m.match(line.Substring(indentation),cdtb))
-                {
-                    block.add(m.toSubstituedPhrase(m.lastMatchArgs()));
-                    Console.WriteLine("added stuff to block");
-                }
-                else
-                {
-                    Console.WriteLine("ERROR: " + line.Substring(indentation) + " matched nothing to "+m.ToString());
-                }
-            }
+            EvalExpression(line.Substring(newindentation),addressMode.zero);
+
             return pStatus.Working;
         }
 
@@ -272,7 +262,10 @@ namespace MouseEngine
             return null;
         }
 
-        public 
+        public byte[] getData()
+        {
+            return data;
+        }
     }
 
 

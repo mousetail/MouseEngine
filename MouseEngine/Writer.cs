@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace MouseEngine.Lowlevel
 {
     interface IByteable
     {
-        byte[] toBytes();
+        IUnsubstitutedBytes toBytes();
     }
 
     enum substitutionRank : byte { FunctionOrder, First, Normal, Later, Last, Reserved }
@@ -51,26 +52,22 @@ namespace MouseEngine.Lowlevel
         {
 
         }
-    }
-
-    class UnsubstitutedBytes {
-
-        public byte[] bytes;
-        public Substitution[] substitutions;
-
-        public UnsubstitutedBytes(byte[] bytes, Substitution[] substitutions)
+        public Substitution moveTo(int position)
         {
-            this.bytes = bytes;
-            this.substitutions = substitutions;
+            Substitution b = this;
+            b.position = position;
+            return b;
         }
     }
+
+    
 
     abstract class WriterComponent
     {
         int identifyer;
         int memoryPosition;
 
-        public abstract UnsubstitutedBytes tobytes();
+        public abstract IUnsubstitutedBytes tobytes();
         public virtual MemoryType getMemoryType()
         {
             return MemoryType.RAM;
@@ -95,7 +92,7 @@ namespace MouseEngine.Lowlevel
 
     class Header : WriterComponent
     {
-        public override UnsubstitutedBytes tobytes()
+        public override IUnsubstitutedBytes tobytes()
         {
             byte[] f = new byte[36];
             return new UnsubstitutedBytes(f, new Substitution[] {
@@ -128,7 +125,7 @@ namespace MouseEngine.Lowlevel
             return 4;
         }
 
-        public override UnsubstitutedBytes tobytes()
+        public override IUnsubstitutedBytes tobytes()
         {
             return new UnsubstitutedBytes( new byte[] { 0xff, 0xff, 0xff, 0xff }, new Substitution[0]);
         }
@@ -148,7 +145,7 @@ namespace MouseEngine.Lowlevel
         {
             return MemoryType.ROM;
         }
-        public override UnsubstitutedBytes tobytes()
+        public override IUnsubstitutedBytes tobytes()
         {
             List<byte> tmp = new List<byte>(64);
             List<Substitution> substitutions = new List<Substitution>();
@@ -158,12 +155,16 @@ namespace MouseEngine.Lowlevel
             tmp.Add(0x00);
             tmp.Add(0x00);
 
-            foreach (SubstitutedPhrase f in func.getBlock())
+            int start = tmp.Count;
+
+            IUnsubstitutedBytes b = new UnsubstitutedBytes(tmp.ToArray(), substitutions.ToArray());
+
+            foreach (IOpcode op in func.codes)
             {
-                tmp.AddRange(f.toBytes());
+                
             }
             size = tmp.Count;
-            return new UnsubstitutedBytes(tmp.ToArray(),substitutions.ToArray());
+            return b;
         }
         public override int getSize()
         {
@@ -266,21 +267,17 @@ namespace MouseEngine.Lowlevel
 
             int TotalLength = ExistingComponents[ExistingComponents.Count - 1].GetPosition() + ExistingComponents[ExistingComponents.Count - 1].getSize();
 
-            byte[] data = new byte[TotalLength];
+            UnsubstitutedBytes data = new UnsubstitutedBytes(new byte[TotalLength]);
 
             List<Substitution> Subs = new List<Substitution>();
 
             foreach (WriterComponent w in ExistingComponents)
             {
-                UnsubstitutedBytes unsbit = w.tobytes();
-                ArrayUtil.WriteSlice(data, w.GetPosition(), w.getSize(), unsbit.bytes);
-                foreach (Substitution sub in unsbit.substitutions)
-                {
-                    Substitution f = sub;
-                    f.position += w.GetPosition();
-                    Subs.Add(f);
-                }
+                IUnsubstitutedBytes unsbit = w.tobytes();
+                data.Combine(unsbit);
             }
+
+            Subs = data.substitutions.ToList();
 
             Subs.Sort((x, y) => (int)x.rank - (int)y.rank);
 
@@ -289,7 +286,7 @@ namespace MouseEngine.Lowlevel
                 Substitute(data, sub);
             }
 
-            return data;
+            return data.bytes.ToArray();
 
 
 
@@ -297,35 +294,33 @@ namespace MouseEngine.Lowlevel
 
         int ramstart = 0;
 
-        public void Substitute(byte[] data, Substitution what)
+        public void Substitute(UnsubstitutedBytes input, Substitution what)
         {
             switch (what.type)
             {
                 case (substitutionType.FileSize):
-                    data.WriteSlice(what.position, 4, toBytes(data.Length));
+                    input.WriteSlice(what.position, toBytes(input.Count));
                     break;
                 case (substitutionType.Ramstart):
-                    data.WriteSlice(what.position, 4, toBytes(ramstart));
+                    input.WriteSlice(what.position, toBytes(ramstart));
                     break;
                 case (substitutionType.MagicNumber):
-                    data.WriteSlice(what.position, 4, new byte[] { 0x47, 0x6C, 0x75, 0x6C });
+                    input.WriteSlice(what.position, new byte[] { 0x47, 0x6C, 0x75, 0x6C }); //Glul
                     break;
                 case (substitutionType.DecodingTable):
-                    data.WriteSlice(what.position, 4, new byte[4]);
+                    input.WriteSlice(what.position, new byte[4]);
                     break;
                 case (substitutionType.Version):
-                    data.WriteSlice(what.position, new byte[] { 0x00, 0x03, 0x01, 0xFF });
+                    input.WriteSlice(what.position, new byte[] { 0x00, 0x03, 0x01, 0xFF });
                     break;
                 case (substitutionType.maxMemory):
-                    Console.WriteLine(data.Length);
-                    Console.WriteLine(what.position);
-                    data.WriteSlice(what.position, toBytes(data.Length));
+                    input.WriteSlice(what.position, toBytes(input.Count));
                     break;
                 case (substitutionType.StartFunction):
-                    data.WriteSlice(what.position, toBytes(startFunctionDefinition));
+                    input.WriteSlice(what.position, toBytes(startFunctionDefinition));
                     break;
                 case substitutionType.StackSize:
-                    data.WriteSlice(what.position, toBytes(1024));
+                    input.WriteSlice(what.position, toBytes(1024));
                     break;
             }
         }
