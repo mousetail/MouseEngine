@@ -6,5 +6,5 @@ The Bedroom is a room:
 	Description is "A ordinary room"
 #	k is bla
 	To start game:
-		return 1
+		return 255
 	Floor is "pink"

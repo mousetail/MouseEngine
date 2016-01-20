@@ -53,7 +53,8 @@ namespace MouseEngine.Lowlevel
     {
         //static Function print = new Function(new Argument[] { new Argument("text",ClassDatabase.str) },);
 
-        public static Phrase returnf = new Phrase(new Argument[] { new Argument("value", ClassDatabase.integer) }, new MultiStringMatcher(new string[1] { "value" }, "return", ""), new Opcode(opcodeType.returnf, (null) ));
+        public static Phrase returnf = new Phrase(new Argument[] { new Argument("value", ClassDatabase.integer) }, null, new MultiStringMatcher(new string[1] { "value" }, "return", ""), 
+            new Opcode(opcodeType.returnf, new ArgumentValue?[1] { null } ));
 
         internal Argument[] arguments;
         Matcher matcher;
@@ -67,11 +68,12 @@ namespace MouseEngine.Lowlevel
         }
 
 
-        public Phrase(Argument[] args, Matcher matcher, params Opcode[] opcodes)
+        public Phrase(Argument[] args, IValueKind returnType, Matcher matcher, params Opcode[] opcodes)
         {
             arguments = args;
             this.matcher = matcher;
             codes = opcodes;
+            this.returnType = returnType;
         }
 
         public Dictionary<string, string> lastMatchArgs()
@@ -187,7 +189,7 @@ namespace MouseEngine.Lowlevel
     {
         public string name;
 
-        public Function(CodeBlock code, string name):base(new Argument[] { }, new StringMatcher(name), new Opcode(opcodeType.call,(null) ))
+        public Function(CodeBlock code, string name):base(new Argument[] { }, null, new StringMatcher(name), new Opcode(opcodeType.call,new ArgumentValue?[1] { null } ))
         {
             inside = code;
             this.name = name;
@@ -204,16 +206,6 @@ namespace MouseEngine.Lowlevel
         }
     }
 
-    class PhraseWithBody: Phrase
-    {
-        CodeBlock inside;
-        public PhraseWithBody(Argument[] args, Matcher m, params Opcode[] opcodes):base(args, m, opcodes)
-        {
-
-        }
-
-    }
-
     interface IOpcode
     {
         IUnsubstitutedBytes getBytecode(Queue<ArgumentValue> input);
@@ -224,9 +216,6 @@ namespace MouseEngine.Lowlevel
 
     class Opcode: IOpcode
     {
-        
-        
-        
 
         static byte[] makeaddrict(ArgumentValue[] modes)
         {
@@ -242,8 +231,6 @@ namespace MouseEngine.Lowlevel
                 {
                     tmp[i / 2] += (byte)(16 * (byte)modes[i].getMode());
                 }
-                Console.Write(tmp[i / 2]);
-                Console.WriteLine(" is the last value of TMP");
             }
             return tmp;
         }
@@ -254,6 +241,10 @@ namespace MouseEngine.Lowlevel
         {
             this.type = type;
             this.existingValues = existingValues;
+            if (existingValues == null)
+            {
+                throw new NullReferenceException("existing values can't be null");
+            }
         }
 
         public IUnsubstitutedBytes getBytecode(Queue<ArgumentValue> values)

@@ -36,9 +36,15 @@ namespace MouseEngine.Lowlevel
     class UnsubstitutedBytes: IUnsubstitutedBytes
     {
         
-        public UnsubstitutedBytes(Byte[] bytes):this(bytes,new Substitution[0])
+        public UnsubstitutedBytes(byte[] bytes):this(bytes,new Substitution[0])
         {
 
+        }
+
+        public UnsubstitutedBytes(byte[] bytes, Substitution[] substitutions)
+        {
+            Bytes = bytes;
+            Substitutions = substitutions;
         }
 
         byte[] Bytes;
@@ -68,11 +74,11 @@ namespace MouseEngine.Lowlevel
         {
             get
             {
-                return substitutions;
+                return Substitutions;
             }
             set
             {
-                substitutions = value.ToArray();
+                Substitutions = value.ToArray();
             }
         }
 
@@ -85,11 +91,7 @@ namespace MouseEngine.Lowlevel
             }
         }
 
-        public UnsubstitutedBytes(byte[] bytes, Substitution[] substitutions)
-        {
-            this.Bytes = bytes;
-            this.substitutions = substitutions;
-        }
+        
 
         public void Combine(IUnsubstitutedBytes other)
         {
@@ -121,6 +123,11 @@ namespace MouseEngine.Lowlevel
 
     class DynamicUnsubstitutedBytes: IUnsubstitutedBytes
     {
+        public DynamicUnsubstitutedBytes(IEnumerable<byte> bytes):this(bytes,new Substitution[0])
+        {
+
+        }
+
         public DynamicUnsubstitutedBytes(IEnumerable<byte> bytes, IEnumerable<Substitution> substitutions)
         {
             Bytes = bytes.ToList();
@@ -177,7 +184,7 @@ namespace MouseEngine.Lowlevel
 
         public void Combine(IUnsubstitutedBytes other)
         {
-            int index =Bytes.Count;
+            int index=Bytes.Count;
             Bytes.AddRange(other.bytes);
             foreach (Substitution b in other.substitutions)
             {
@@ -210,6 +217,11 @@ namespace MouseEngine.Lowlevel
                     Bytes[sum] = numerator.Current;
                     index += 1;
                 }
+            }
+
+            foreach (Substitution s in other.substitutions)
+            {
+                Substitutions.Add(s.moveTo(s.position + position));
             }
         }
 

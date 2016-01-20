@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using MouseEngine;
+using System.Linq;
 using MouseEngine.Lowlevel;
 
 
@@ -83,7 +84,6 @@ namespace MouseEngine
                 {
                     if (func == ProcessingInternal.GlobalFunction)
                     {
-                        Console.WriteLine(internalParser.getBlock().ToString());
                         dtb.functionDatabase.AddGlobalFunction(internalParser.getBlock(), funcName);
                     }
                     internalParser = null;
@@ -209,28 +209,89 @@ namespace MouseEngine
                 return pStatus.Finished;
             }
 
-            EvalExpression(line.Substring(newindentation),addressMode.zero);
+            EvalExpression(line.Substring(newindentation));
 
             return pStatus.Working;
         }
-
-        public void EvalExpression(string expression, addressMode outputtype)
+        /// <summary>
+        /// Note that this function will add phrases to the internal code block, the order iterations of this function are called
+        /// matters.
+        /// </summary>
+        /// <param name="expression"></param>
+        /// <returns></returns>
+        public ArgumentValue EvalExpression(string expression)
         {
-
+            object b = cdtb.ParseAnything(expression);
+            if (b != null)
+            {
+                Console.WriteLine("b is an object \"" + b.ToString() + "\" of kind "+b.GetType().ToString()+"\"");
+                return toValue(b);
+            }
+            else {
+                Phrase matchedExpression=null;
+                foreach (Phrase f in fdtb)
+                {
+                    if (f.match(expression,cdtb))
+                    {
+                        matchedExpression = f;
+           
+                        break;
+                    }
+                }
+                Dictionary<string, string> args= matchedExpression.lastMatchArgs();
+                List<ArgumentValue> argValues =new List<ArgumentValue>();
+                foreach (Argument v in matchedExpression.arguments.Reverse())
+                {
+                    argValues.Add(EvalExpression( args[v.name]));
+                }
+                argValues.Add(ArgumentValue.Push);
+                block.add(matchedExpression.toSubstituedPhrase(argValues));
+                return ArgumentValue.Pull;
+            }
         }
 
         public CodeBlock getBlock()
         {
             return block;
         }
+
+        static ArgumentValue toValue(object v)
+        {
+            if (v is int)
+            {
+                return new ArgumentValue(addressMode.constint, (int)v);
+            }
+            //TODO: Add options for kind and item prototypes
+            throw new UnformatableObjectException("object \"" + v.ToString() + "\" of type \""+v.GetType().ToString()+" has no possible format");
+        }
+    }
+
+    class UnformatableObjectException: Exception
+    {
+        public UnformatableObjectException(string message):base(message)
+        {
+
+        }
     }
 
     struct ArgumentValue
     {
+        static public ArgumentValue Zero = new ArgumentValue(addressMode.zero);
+        static public ArgumentValue Push = new ArgumentValue(addressMode.stack);
+        static public ArgumentValue Pull = Push;
+
         addressMode mode;
         byte[] data;
         substitutionType? substitutionType;
         int substitutionData;
+
+        public ArgumentValue(addressMode mode)
+        {
+            this.mode = mode;
+            this.data = new byte[0];
+            substitutionType = null;
+            substitutionData = 0; 
+        }
 
         public ArgumentValue(addressMode mode, int value)
         {
@@ -267,8 +328,4 @@ namespace MouseEngine
             return data;
         }
     }
-
-
-
-
 }

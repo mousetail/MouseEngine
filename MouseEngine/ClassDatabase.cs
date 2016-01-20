@@ -89,7 +89,7 @@ namespace MouseEngine
         }
 
         
-        public static IValueKind getKind(Object input)
+        public static IValueKind getKind(object input)
         {
             if (input is ItemPrototype)
             {
@@ -120,6 +120,13 @@ namespace MouseEngine
 
             s+=showSingleDict(this.existingObjects);
 
+            s += "\n";
+
+            foreach (Lowlevel.Phrase f in functionDatabase)
+            {
+                s += "\ndefined function: " + f.ToString();
+            }
+
             return s;
         }
 
@@ -146,15 +153,15 @@ namespace MouseEngine
                 }
             }
 
-            foreach (Lowlevel.Phrase f in functionDatabase)
-            {
-                s += "\ndefined function: " + f.ToString();
-            }
+            
 
             return s;
         }
         /// <summary>
-        /// Probably not my responsibility, but who cares
+        /// Preforms basic checking of non-expression literals, like numbers, strings and names of existing objects
+        /// I am not sure if this is the class that should have this responsibility, but who cares.
+        /// Returns null if no simple object could be found, in this case, you could throw an error or use
+        /// codeParser.evalExpression.
         /// </summary>
         /// <param name="s"></param>
         /// <returns></returns>
@@ -162,15 +169,18 @@ namespace MouseEngine
         {
             if (existingObjects.ContainsKey(s))
             {
+                Console.WriteLine("\""+s+"\" has been interpreted as a existing object");
                 return existingObjects[s];
             }
             else if (s.StartsWith("\"") && s.EndsWith("\"")){
+                Console.WriteLine(s + " has been interpreted as a string");
                 return s.Substring(1, s.Length - 2);
             }
             else
             {
                 try
                 {
+                    Console.WriteLine("\"" + s + "\" has been interpreted as a int");
                     return (int.Parse(s));
                 }
                 catch (FormatException)

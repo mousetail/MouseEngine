@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Diagnostics;
 
 namespace MouseEngine.Lowlevel
 {
@@ -139,6 +140,7 @@ namespace MouseEngine.Lowlevel
         public FunctionWriter(Function f, string name)
         {
             func = f;
+            Console.WriteLine("starting tobytes on function " + name);
             tobytes();
         }
         public override MemoryType getMemoryType()
@@ -156,14 +158,14 @@ namespace MouseEngine.Lowlevel
             tmp.Add(0x00);
 
             int start = tmp.Count;
-
+            Console.WriteLine("Making an instance of bytes...");
             IUnsubstitutedBytes b = new UnsubstitutedBytes(tmp.ToArray(), substitutions.ToArray());
-
-            foreach (IOpcode op in func.codes)
+            Console.WriteLine("Made an instance of bytes");
+            foreach (SubstitutedPhrase sf in func.getBlock())
             {
-                
+                b.Combine(sf.toBytes());
             }
-            size = tmp.Count;
+            size = b.Count;
             return b;
         }
         public override int getSize()
@@ -194,29 +196,34 @@ namespace MouseEngine.Lowlevel
             fdtb = cdtb.functionDatabase;
         }
 
+        bool prepared;
+
         public void prepare()
         {
             Components = new List<WriterComponent>() { new RandomWord() };
             ExistingComponents = new List<WriterComponent>();
             Header h = new Header();
             ExistingComponents.Add(h);
+            Console.WriteLine("starting phrase loop...");
             foreach (Phrase f in fdtb)
             {
+                Console.WriteLine("passing phrase " + f.ToString());
                 if (f is Function)
                 {
                     Components.Add(new FunctionWriter((Function)f, ((Function)f).name));
                     if (((Function)f).name=="start game")
                     {
                         startfunction = (FunctionWriter)Components[Components.Count-1];
-                        Console.WriteLine(f);
                     }
                 }
             }
             h.place(0);
+            prepared = true;
         }
 
         public byte[] write()
         {
+            Debug.Assert(prepared);
             Comparison<WriterComponent> b = (x, y) => x.GetPosition() - y.GetPosition();
             Components.Sort((x, y) => (int)x.getMemoryType() - (int)y.getMemoryType());
 
@@ -258,7 +265,6 @@ namespace MouseEngine.Lowlevel
                 if (p.Equals( startfunction))
                 {
                     startFunctionDefinition = position;
-                    Console.WriteLine(p);
                 }
 
                 ExistingComponents.Add(p);
@@ -266,15 +272,22 @@ namespace MouseEngine.Lowlevel
             }
 
             int TotalLength = ExistingComponents[ExistingComponents.Count - 1].GetPosition() + ExistingComponents[ExistingComponents.Count - 1].getSize();
-
-            UnsubstitutedBytes data = new UnsubstitutedBytes(new byte[TotalLength]);
+            
+            DynamicUnsubstitutedBytes data = new DynamicUnsubstitutedBytes(new byte[TotalLength]);
 
             List<Substitution> Subs = new List<Substitution>();
+
+            Console.WriteLine("MEMORY MAP:");
+            foreach (WriterComponent p in ExistingComponents)
+            {
+                Console.WriteLine(p.GetPosition().ToString() + ":\t" + p.ToString());
+            }
+            Console.WriteLine("END MEMORY MAP");
 
             foreach (WriterComponent w in ExistingComponents)
             {
                 IUnsubstitutedBytes unsbit = w.tobytes();
-                data.Combine(unsbit);
+                data.Combine(unsbit,w.GetPosition());
             }
 
             Subs = data.substitutions.ToList();
@@ -294,8 +307,9 @@ namespace MouseEngine.Lowlevel
 
         int ramstart = 0;
 
-        public void Substitute(UnsubstitutedBytes input, Substitution what)
+        public void Substitute(IUnsubstitutedBytes input, Substitution what)
         {
+            Console.WriteLine(what.position);
             switch (what.type)
             {
                 case (substitutionType.FileSize):

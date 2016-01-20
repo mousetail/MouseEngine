@@ -331,12 +331,10 @@ namespace MouseEngine
         {
             if (segments.Length == 0)
             {
-                Console.WriteLine("No segments");
                 return true;
             }
             else if (!str.StartsWith(segments[0],StringComparison.CurrentCultureIgnoreCase))
             {
-                Console.WriteLine("MultiStringMatchedError: No start");
                 return false;
             }
             int lastpos = segments[0].Length;
@@ -387,7 +385,6 @@ namespace MouseEngine
                 Dictionary<string, string> rtrn = new Dictionary<string, string>();
                 for (int i=0; i<args.Length; i++)
                 {
-                    Console.WriteLine(args[i]);
                     rtrn[argsnames[i]] = args[i];
                 }
                 return rtrn;

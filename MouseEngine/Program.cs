@@ -29,17 +29,20 @@ namespace MouseEngine
                 Console.Write(b.WriteData());
 
                 Writer w = new Writer(b);
+                Console.WriteLine("Opening file...");
                 f = new FileStream("output.ulx", FileMode.Create);
                 BinaryWriter writer = new BinaryWriter(f);
                 // byte[] q= w.write();
                 //f.Write(q, 0, q.Length);
+                Console.WriteLine("Preparing...");
                 w.prepare();
+                Console.WriteLine("Writing...");
                 writer.Write(w.write());
                 writer.Close();
             }
-            
 
 
+            Console.WriteLine("Finished, press enter to exit");
             Console.ReadLine();
         }
     }
