@@ -13,6 +13,7 @@ namespace MouseEngine.Lowlevel
     enum substitutionRank : byte { FunctionOrder, First, Normal, Later, Last, Reserved }
     enum substitutionType
     {
+        None,
         MemAdress,
         Length,
         MagicNumber,
@@ -24,7 +25,7 @@ namespace MouseEngine.Lowlevel
         DecodingTable,
         Checksum,
         maxMemory,
-        argumentN,
+        WriterRef,
     }
     enum MemoryType : byte
     {
@@ -89,6 +90,11 @@ namespace MouseEngine.Lowlevel
         {
             return this.memoryPosition;
         }
+
+        public virtual int getID()
+        {
+            return -1;
+        }
     }
 
     class Header : WriterComponent
@@ -136,11 +142,13 @@ namespace MouseEngine.Lowlevel
     {
         Function func;
         int size;
+        int id;
 
         public FunctionWriter(Function f, string name)
         {
             func = f;
             tobytes();
+            id = f.getID();
         }
         public override MemoryType getMemoryType()
         {
@@ -174,8 +182,49 @@ namespace MouseEngine.Lowlevel
         {
             get { return func.name == "start game"; }
         }
+
+        public override int getID()
+        {
+            return func.getID();
+        }
+
+       
     }
 
+    class StringWriter: WriterComponent
+    {
+        StringItem parent;
+        int size;
+
+        public StringWriter (StringItem parent)
+        {
+            size = parent.toBytes().Count;
+            parent.setWriter(this);
+            this.parent = parent;
+        }
+
+        public override IUnsubstitutedBytes tobytes()
+        {
+            IUnsubstitutedBytes b = parent.toBytes();
+            size = b.Count;
+            return b;
+        }
+
+        public override int getSize()
+        {
+            return size;
+        }
+
+        public override int getID()
+        {
+            return parent.getID();
+        }
+
+        public override MemoryType getMemoryType()
+        {
+            return MemoryType.ROM;
+        }
+    }
 
 
     internal class Writer
@@ -186,11 +235,13 @@ namespace MouseEngine.Lowlevel
         FunctionDatabase fdtb;
         int startFunctionDefinition;
         FunctionWriter startfunction;
+        StringDatabase sdtb;
 
-        public Writer(ClassDatabase cdtb)
+        public Writer(Databases dtbs)
         {
-            this.cdtb = cdtb;
+            cdtb = dtbs.cdtb;
             fdtb = cdtb.functionDatabase;
+            sdtb = dtbs.sdtb;
         }
 
         bool prepared;
@@ -201,10 +252,8 @@ namespace MouseEngine.Lowlevel
             ExistingComponents = new List<WriterComponent>();
             Header h = new Header();
             ExistingComponents.Add(h);
-            Console.WriteLine("starting phrase loop...");
             foreach (Phrase f in fdtb)
             {
-                Console.WriteLine("passing phrase " + f.ToString());
                 if (f is Function)
                 {
                     Components.Add(new FunctionWriter((Function)f, ((Function)f).name));
@@ -214,6 +263,11 @@ namespace MouseEngine.Lowlevel
                     }
                 }
             }
+            foreach (StringItem f in sdtb)
+            {
+                Components.Add(new StringWriter(f));
+            }
+
             h.place(0);
             prepared = true;
         }
@@ -336,6 +390,26 @@ namespace MouseEngine.Lowlevel
                     break;
                 case substitutionType.StackSize:
                     input.WriteSlice(what.position, toBytes(1024));
+                    break;
+                case substitutionType.WriterRef:
+                    WriterComponent wrtcmp=null;
+                    foreach (WriterComponent p in ExistingComponents)
+                    {
+                        if (p.getID() == what.data)
+                        {
+                            wrtcmp = p;
+                            break;
+                        }
+                    }
+                    if (wrtcmp != null)
+                    {
+                        input.WriteSlice(what.position, toBytes(wrtcmp.GetPosition()));
+                    }
+                    else
+                    {
+                        throw new Errors.IDMismatchException("ID " + what.data.ToString() + " refered to, but not set to any object");
+                    }
+
                     break;
             }
         }

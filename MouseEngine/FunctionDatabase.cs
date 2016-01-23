@@ -7,6 +7,16 @@ using System.Threading.Tasks;
 
 namespace MouseEngine.Lowlevel
 {
+    /// <summary>
+    /// A interface to link a object that will be writen to the binary, like a function or a string, to
+    /// it's writer.
+    /// </summary>
+    interface IReferable
+    {
+        WriterComponent getWriter();
+        void setWriter(WriterComponent w);
+        int getID();
+    }
     
 
     internal class FunctionDatabase: IEnumerable<Phrase>
@@ -18,7 +28,7 @@ namespace MouseEngine.Lowlevel
         public FunctionDatabase()
         {
             globalFunctions = new List<Phrase>() { Phrase.returnf, Phrase.add, Phrase.makeWindow, Phrase.setIOSystem,
-            Phrase.setIOWindow, Phrase.printUniChar, Phrase.GiveError, Phrase.GlkPoll};
+            Phrase.setIOWindow, Phrase.printUniChar, Phrase.GiveError, Phrase.GlkPoll, Phrase.IOprint};
         }
 
         public IEnumerator<Phrase> GetEnumerator()
@@ -33,7 +43,7 @@ namespace MouseEngine.Lowlevel
 
         public void AddGlobalFunction(CodeBlock b, string name, int numargs)
         {
-            globalFunctions.Add(new Function(b, name, numargs));
+            globalFunctions.Add(new Function(b, name, numargs, Databases.ids++));
         }
     }
     internal struct Argument
@@ -193,16 +203,18 @@ namespace MouseEngine.Lowlevel
         }
     }
 
-    class Function: Phrase
+    class Function: Phrase, IReferable
     {
         public string name;
         public int numargs;
+        int id;
 
-        public Function(CodeBlock code, string name, int numargs):base(new Argument[] { }, null, new StringMatcher(name), new Opcode(opcodeType.call,new IArgItem[] { new ArgumentValue(addressMode.addrint,default(substitutionType)), new ArgumentValue(addressMode.constint,0),new ArgItemReturnValue() } ))
+        public Function(CodeBlock code, string name, int numargs, int id):base(new Argument[] { }, null, new StringMatcher(name), new Opcode(opcodeType.call,new IArgItem[] { new ArgumentValue(addressMode.addrint,substitutionType.WriterRef,id,ClassDatabase.integer), new ArgumentValue(addressMode.constint,0),new ArgItemReturnValue() } ))
         {
             inside = code;
             this.name = name;
             this.numargs = numargs;
+            this.id = id;
         }
         CodeBlock inside;
         public CodeBlock getBlock()
@@ -213,6 +225,23 @@ namespace MouseEngine.Lowlevel
         public override string ToString()
         {
             return "\""+name+"\"";
+        }
+
+        WriterComponent writer;
+
+        public WriterComponent getWriter()
+        {
+            return writer;
+        }
+
+        public void setWriter(WriterComponent w)
+        {
+            writer = w;
+        }
+
+        public int getID()
+        {
+            return id;
         }
     }
 

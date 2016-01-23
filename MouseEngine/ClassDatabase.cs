@@ -6,6 +6,29 @@ using System.Threading.Tasks;
 
 namespace MouseEngine
 {
+    struct Databases
+    {
+        public ClassDatabase cdtb;
+        public Lowlevel.FunctionDatabase fdtb;
+        public StringDatabase sdtb;
+
+        public static Databases getDefault()
+        {
+            Databases d = new Databases();
+            d.cdtb = new ClassDatabase();
+            d.fdtb = new Lowlevel.FunctionDatabase();
+            d.sdtb = new StringDatabase();
+            return d;
+        }
+
+        static public int ids=0;
+    }
+
+    struct Nothing
+    {
+
+    }
+
     class ClassDatabase
     {
         public Dictionary<string, ItemPrototype> existingObjects;
@@ -174,18 +197,15 @@ namespace MouseEngine
         {
             if (existingObjects.ContainsKey(s))
             {
-                Console.WriteLine("\""+s+"\" has been interpreted as a existing object");
                 return existingObjects[s];
             }
             else if (s.StartsWith("\"") && s.EndsWith("\"")){
-                Console.WriteLine(s + " has been interpreted as a string");
                 return s.Substring(1, s.Length - 2);
             }
             else
             {
                 try
                 {
-                    Console.WriteLine("\"" + s + "\" has been interpreted as a int");
                     return (int.Parse(s));
                 }
                 catch (FormatException)
@@ -198,6 +218,7 @@ namespace MouseEngine
 
         public static IValueKind str = new StringValueKind();
         public static IValueKind integer = new IntValueKind();
+        public static IValueKind nothing = new VoidValueKind();
 
     }
     class Prototype
@@ -278,6 +299,7 @@ namespace MouseEngine
     interface IValueKind
     {
         object parse(string s);
+        bool isParent(IValueKind other);
 
     }
     interface IValueKind<T>: IValueKind
@@ -287,6 +309,11 @@ namespace MouseEngine
 
     class IntValueKind: IValueKind<int?>
     {
+        public bool isParent(IValueKind other)
+        {
+            return other==this;
+        }
+
         public object parse(string s)
         {
             return int.Parse(s);
@@ -294,6 +321,11 @@ namespace MouseEngine
     }
     class StringValueKind: IValueKind<string>
     {
+        public bool isParent(IValueKind other)
+        {
+            return other==this;
+        }
+
         public string parse(string s)
         {
             return s.Substring(1, s.Length - 2);
@@ -302,6 +334,19 @@ namespace MouseEngine
         object IValueKind.parse(string s)
         {
             return parse(s);
+        }
+    }
+
+    class VoidValueKind : IValueKind<Nothing>
+    {
+        public bool isParent(IValueKind other)
+        {
+            return true;
+        }
+
+        public object parse(string s)
+        {
+            return null;
         }
     }
 
@@ -353,5 +398,27 @@ namespace MouseEngine
                 return DictUtil.Combine( subAttributes,parent.getPossibleAttributes());
             }
         }
+
+        public bool isParent(IValueKind other)
+        {
+            if (!(other is KindPrototype))
+            {
+                return false;
+            }
+            KindPrototype v = (KindPrototype)other;
+            if (v.parent == null)
+            {
+                return false;
+            }
+            else if (v==this || v.parent==this || isParent(v.parent))
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
     }
+
 }

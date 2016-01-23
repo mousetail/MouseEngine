@@ -19,15 +19,15 @@ namespace MouseEngine
             {
                 Parser parser = new Parser();
                 FileStream f = new FileStream(args[0],FileMode.Open);
-                StreamReader reader = new StreamReader(f);
+                StreamReader reader = new StreamReader(f,Encoding.UTF8);
                 while (!reader.EndOfStream)
                 {
                     parser.Parse(reader.ReadLine());
                 }
                 f.Close();
-                ClassDatabase b = parser.getDatabase();
-                Console.Write(b.WriteData());
-
+                Databases b = parser.getDatabases();
+                Console.Write(b.cdtb.WriteData());
+                
                 Writer w = new Writer(b);
                 Console.WriteLine("Opening file...");
                 f = new FileStream("output.ulx", FileMode.Create);
@@ -43,7 +43,7 @@ namespace MouseEngine
 
             Console.WriteLine(FileMode.Create.ToString());
 
-            Console.WriteLine("Finished, press enter to exit");
+            Console.WriteLine("Finished, press enter to exitஇ");
             Console.ReadLine();
         }
     }

@@ -19,12 +19,12 @@ namespace MouseEngine
     class Parser
     {
         BlockParser currentBlock;
-        ClassDatabase database;
+        Databases databases;
         public Parser()
         {
-            database = new ClassDatabase();
+            databases = Databases.getDefault();
 
-            currentBlock = new BlockParser(database);
+            currentBlock = new BlockParser(databases);
         }
         public void Parse(String line)
         {
@@ -33,14 +33,14 @@ namespace MouseEngine
                 pStatus result = currentBlock.Parse(line);
                 while (result == pStatus.Finished)
                 {
-                    currentBlock = new BlockParser(database);
+                    currentBlock = new BlockParser(databases);
                     result=currentBlock.Parse(line);
                 }
             }
         }
-        public ClassDatabase getDatabase()
+        public Databases getDatabases()
         {
-            return database;
+            return databases;
         }
     }
     class BlockParser
@@ -55,6 +55,8 @@ namespace MouseEngine
         static Matcher NewAttribute = new MultiStringMatcher(nameKind, "Make property ", " of kind ", "");
         static Matcher GlobalFunction = new MultiStringMatcher(functionname, "To ", ":");
         bool started;
+        Databases dtbs;
+
         ClassDatabase dtb;
 
         int indentation;
@@ -69,10 +71,11 @@ namespace MouseEngine
 
         CodeParser internalParser;
 
-        public BlockParser(ClassDatabase dtb)
+        public BlockParser(Databases dtbs)
         {
             started = false;
-            this.dtb = dtb;
+            this.dtbs = dtbs;
+            dtb = dtbs.cdtb;
         }
         public pStatus Parse(string line)
         {
@@ -157,7 +160,7 @@ namespace MouseEngine
                 }
                 else if (GlobalFunction.match(strippedLine, dtb))
                 {
-                    internalParser = new CodeParser(dtb.functionDatabase, dtb, indentation);
+                    internalParser = new CodeParser(dtbs, indentation);
                     func = ProcessingInternal.GlobalFunction;
                     funcName = (string)GlobalFunction.getArgs()["Name"];
                 }
@@ -182,17 +185,20 @@ namespace MouseEngine
 
         ClassDatabase cdtb;
 
+        StringDatabase sdtb;
+
         int indentation;
         bool indented;
         int oldindentation;
 
         Dictionary<string, LocalVariable> locals=new Dictionary<string, LocalVariable>();
 
-        public CodeParser(FunctionDatabase dtb, ClassDatabase cdtb, int indentation)
+        public CodeParser(Databases dtbs, int indentation)
         {
-            fdtb = dtb;
-            this.cdtb = cdtb;
-            this.oldindentation = indentation;
+            fdtb = dtbs.fdtb;
+            cdtb = dtbs.cdtb;
+            sdtb = dtbs.sdtb;
+            oldindentation = indentation;
             indented = false;
             block = new CodeBlock();
 
@@ -244,7 +250,6 @@ namespace MouseEngine
             object b = cdtb.ParseAnything(expression);
             if (b != null)
             {
-                Console.WriteLine("b is an object \"" + b.ToString() + "\" of kind " + b.GetType().ToString() + "\"");
                 return toValue(b);
             }
             else
@@ -267,9 +272,17 @@ namespace MouseEngine
                 List<ArgumentValue> argValues = new List<ArgumentValue>();
                 foreach (Argument v in matchedExpression.arguments.Reverse())
                 {
+                    ArgumentValue t = EvalExpression(args[v.name]);
+
+                    if (!v.type.isParent(t.getKind()))
+                    {
+                        throw new Errors.TypeMismatchException("type " + v.type.ToString() + " is incompatable with " + t.getKind().ToString());
+                    }
+
                     if (v.isStackArgument)
                     {
-                        ArgumentValue t = EvalExpression(args[v.name]);
+                        
+
                         if (t.getMode() != addressMode.stack)
                         {
                             block.add(Phrase.push.toSubstituedPhrase(new ArgumentValue[] { t }, null));
@@ -277,7 +290,7 @@ namespace MouseEngine
                     }
                     else
                     {
-                        argValues.Add(EvalExpression(args[v.name]));
+                        argValues.Add(t);
                     }
                 }
                 argValues.Add(ArgumentValue.Push);
@@ -299,11 +312,16 @@ namespace MouseEngine
             return block;
         }
 
-        static ArgumentValue toValue(object v)
+        private ArgumentValue toValue(object v)
         {
             if (v is int)
             {
                 return new ArgumentValue(addressMode.constint, (int)v);
+            }
+            else if (v is string)
+            {
+                StringItem l = sdtb.getStr((string)v);
+                return (ArgumentValue)l;
             }
             //TODO: Add options for kind and item prototypes
             throw new Errors.UnformatableObjectException("object \"" + v.ToString() + "\" of type \""+v.GetType().ToString()+" has no possible format");
@@ -343,6 +361,7 @@ namespace MouseEngine
         addressMode mode;
         byte[] data;
         substitutionType? substitutionType;
+        IValueKind kind;
         int substitutionData;
 
         public ArgumentValue(addressMode mode)
@@ -350,7 +369,8 @@ namespace MouseEngine
             this.mode = mode;
             this.data = new byte[0];
             substitutionType = null;
-            substitutionData = 0; 
+            substitutionData = 0;
+            kind = ClassDatabase.nothing; 
         }
 
         public ArgumentValue(addressMode mode, int value)
@@ -359,19 +379,36 @@ namespace MouseEngine
             this.data = Writer.toBytes(value);
             this.substitutionType = null;
             this.substitutionData = 0;
+            kind = ClassDatabase.integer;
         }
 
-        public ArgumentValue(addressMode mode, substitutionType type)
+        public ArgumentValue(addressMode mode, substitutionType type, IValueKind kind)
         {
             this.mode = mode;
             substitutionType = type;
-            data = null;
+            data = new byte[4];
             substitutionData = 0;
+            this.kind = kind;
+            
+        }
+
+        public ArgumentValue(addressMode mode, substitutionType type, int subdata, IValueKind kind)
+        {
+            this.mode = mode;
+            substitutionType = type;
+            data = new byte[4];
+            substitutionData = subdata;
+            this.kind = kind;
         }
 
         public addressMode getMode()
         {
             return mode;
+        }
+
+        public IValueKind getKind()
+        {
+            return kind;
         }
 
         public Substitution? getSubstitution(int position)

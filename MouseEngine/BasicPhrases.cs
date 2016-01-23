@@ -52,5 +52,9 @@
             new Opcode(opcodeType.copy, new ArgumentValue(addressMode.constint,256), ArgumentValue.Push),
             new Opcode(opcodeType.glk, new ArgumentValue(addressMode.constint, (int)glkFunction.glk_select_poll),
                 new ArgumentValue(addressMode.constint,1), new ArgItemReturnValue()));
+
+        public static Phrase IOprint = new Phrase(new Argument[1] { new Argument("text", ClassDatabase.str) },
+            null, new MultiStringMatcher(new[] { "text" }, "say ", ""),
+            new Opcode(opcodeType.streamstr,new ArgItemFromArguments()));
     }
 }

@@ -57,4 +57,28 @@ namespace MouseEngine.Errors
 
         }
     }
+
+    class IDMismatchException: ParsingException
+    {
+        public IDMismatchException(string message) : base(message)
+        {
+
+        }
+        public IDMismatchException(int linenumber, string message): base(linenumber, message)
+        {
+
+        }
+    }
+
+    class TypeMismatchException: ParsingException
+    {
+        public TypeMismatchException(string message): base(message)
+        {
+
+        }
+        public TypeMismatchException(int linenumber, string message): base(linenumber, message)
+        {
+
+        }
+    }
 }
