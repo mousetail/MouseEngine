@@ -140,7 +140,6 @@ namespace MouseEngine.Lowlevel
         public FunctionWriter(Function f, string name)
         {
             func = f;
-            Console.WriteLine("starting tobytes on function " + name);
             tobytes();
         }
         public override MemoryType getMemoryType()
@@ -153,14 +152,12 @@ namespace MouseEngine.Lowlevel
             List<Substitution> substitutions = new List<Substitution>();
             tmp.Add(0xC1);
             tmp.Add(0x04);
-            tmp.Add((byte)func.arguments.Length);
+            tmp.Add((byte)func.numargs);
             tmp.Add(0x00);
             tmp.Add(0x00);
 
             int start = tmp.Count;
-            Console.WriteLine("Making an instance of bytes...");
             IUnsubstitutedBytes b = new UnsubstitutedBytes(tmp.ToArray(), substitutions.ToArray());
-            Console.WriteLine("Made an instance of bytes");
             foreach (SubstitutedPhrase sf in func.getBlock())
             {
                 b.Combine(sf.toBytes());
@@ -290,6 +287,11 @@ namespace MouseEngine.Lowlevel
                 data.Combine(unsbit,w.GetPosition());
             }
 
+            while (data.Count % 256 != 0)
+            {
+                data.Combine(new UnsubstitutedBytes(new byte[1]));
+            }
+
             Subs = data.substitutions.ToList();
 
             Subs.Sort((x, y) => (int)x.rank - (int)y.rank);
@@ -309,7 +311,6 @@ namespace MouseEngine.Lowlevel
 
         public void Substitute(IUnsubstitutedBytes input, Substitution what)
         {
-            Console.WriteLine(what.position);
             switch (what.type)
             {
                 case (substitutionType.FileSize):
@@ -328,7 +329,7 @@ namespace MouseEngine.Lowlevel
                     input.WriteSlice(what.position, new byte[] { 0x00, 0x03, 0x01, 0xFF });
                     break;
                 case (substitutionType.maxMemory):
-                    input.WriteSlice(what.position, toBytes(input.Count));
+                    input.WriteSlice(what.position, toBytes(input.Count.RoundUp(256)));
                     break;
                 case (substitutionType.StartFunction):
                     input.WriteSlice(what.position, toBytes(startFunctionDefinition));

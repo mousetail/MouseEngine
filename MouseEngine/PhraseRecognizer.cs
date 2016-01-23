@@ -396,12 +396,13 @@ namespace MouseEngine
         }
         public override string ToString()
         {
-            string s = base.ToString();
-            foreach (string f in args)
+            string tmp = "";
+            foreach (string s in segments)
             {
-                s += " " + f;
+                tmp += s;
+                tmp += "[something]";
             }
-            return s;
+            return tmp.Substring(0, tmp.Length - 11);
         }
     }
     

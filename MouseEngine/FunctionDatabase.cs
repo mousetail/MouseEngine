@@ -17,7 +17,8 @@ namespace MouseEngine.Lowlevel
 
         public FunctionDatabase()
         {
-            globalFunctions = new List<Phrase>() { Phrase.returnf };
+            globalFunctions = new List<Phrase>() { Phrase.returnf, Phrase.add, Phrase.makeWindow, Phrase.setIOSystem,
+            Phrase.setIOWindow, Phrase.printUniChar, Phrase.GiveError, Phrase.GlkPoll};
         }
 
         public IEnumerator<Phrase> GetEnumerator()
@@ -30,35 +31,46 @@ namespace MouseEngine.Lowlevel
             return ((IEnumerable<Phrase>)globalFunctions).GetEnumerator();
         }
 
-        public void AddGlobalFunction(CodeBlock b, String name)
+        public void AddGlobalFunction(CodeBlock b, string name, int numargs)
         {
-            globalFunctions.Add(new Function(b, name));
+            globalFunctions.Add(new Function(b, name, numargs));
         }
     }
     internal struct Argument
     {
         public string name;
         public IValueKind type;
+        public bool isStackArgument;
+        
 
         public Argument(string name, IValueKind kind)
         {
             this.name = name;
             type = kind;
+            isStackArgument = false;
         }
+        
+        internal static Argument fromStack(string name, IValueKind kind)
+        {
+            Argument b = new Argument(name, kind);
+            b.isStackArgument = true;
+            return b;
+        }
+
         
     }
 
 
-    internal class Phrase
+    internal partial class Phrase
     {
         //static Function print = new Function(new Argument[] { new Argument("text",ClassDatabase.str) },);
 
-        public static Phrase returnf = new Phrase(new Argument[] { new Argument("value", ClassDatabase.integer) }, null, new MultiStringMatcher(new string[1] { "value" }, "return", ""), 
-            new Opcode(opcodeType.returnf, new ArgumentValue?[1] { null } ));
+        
 
         internal Argument[] arguments;
         Matcher matcher;
         internal Opcode[] codes;
+        //int stackArguments = 0;
 
         IValueKind returnType;
 
@@ -75,7 +87,7 @@ namespace MouseEngine.Lowlevel
             codes = opcodes;
             this.returnType = returnType;
         }
-
+        
         public Dictionary<string, string> lastMatchArgs()
         {
             return matcher.getArgs();
@@ -86,9 +98,9 @@ namespace MouseEngine.Lowlevel
             return matcher.match(s, dtb);
         }
 
-        public SubstitutedPhrase toSubstituedPhrase(IEnumerable<ArgumentValue> arguments)
+        public SubstitutedPhrase toSubstituedPhrase(IEnumerable<ArgumentValue> arguments, ArgumentValue? returnValue)
         {
-            return new SubstitutedPhrase(this, arguments.ToList());
+            return new SubstitutedPhrase(this, arguments.ToList(), returnValue);
         }
 
         public override string ToString()
@@ -101,11 +113,13 @@ namespace MouseEngine.Lowlevel
 
         List<ArgumentValue> argValues;
         Phrase parent;
+        ArgumentValue? returnValue;
         
-        internal SubstitutedPhrase(Phrase f, List<ArgumentValue> values)
+        internal SubstitutedPhrase(Phrase f, List<ArgumentValue> values, ArgumentValue? returnValue)
         {
             parent = f;
             argValues = values;
+            this.returnValue = returnValue;
         }
 
         public virtual IUnsubstitutedBytes toBytes()
@@ -113,9 +127,10 @@ namespace MouseEngine.Lowlevel
             Queue<ArgumentValue> argQue = new Queue<ArgumentValue>(argValues);
             List<byte> tmp=new List<byte>();
             List<Substitution> substitutions=new List<Substitution>();
+            ArgumentValue? returnValue = this.returnValue;
             foreach (Opcode a in parent.codes)
             {
-                IUnsubstitutedBytes b = a.getBytecode(argQue);
+                IUnsubstitutedBytes b = a.getBytecode(argQue,ref returnValue);
                 foreach (Substitution sub in b.substitutions)
                 {
                     Substitution nsub = sub;
@@ -125,25 +140,18 @@ namespace MouseEngine.Lowlevel
                 tmp.AddRange(b.bytes);
             }
             byte[] final = tmp.ToArray();
-            
-
-            foreach (Substitution sub in substitutions)
+         
+            if (returnValue!=null && returnValue.Value.getMode() != addressMode.zero)
             {
-                if (sub.rank == substitutionRank.FunctionOrder)
-                {
-                    switch (sub.type)
-                    {
-                        case substitutionType.argumentN:
-                            if (ClassDatabase.getKind( parent.arguments[(int)sub.data]) == ClassDatabase.integer)
-                            {
-
-                            }
-                            break;
-                    }
-                }
+                throw new Errors.ReturnTypeViolationError("Attempt to use the return value of " + ToString() + " which has no return value");
             }
 
             return new UnsubstitutedBytes(final, substitutions.ToArray());
+        }
+
+        public override string ToString()
+        {
+            return parent.ToString();
         }
     }
 
@@ -161,9 +169,9 @@ namespace MouseEngine.Lowlevel
         {
             content.Add(num);
         }
-        public void add(Phrase p, IEnumerable<ArgumentValue> args)
+        public void add(Phrase p, IEnumerable<ArgumentValue> args, ArgumentValue returnValue)
         {
-            content.Add(p.toSubstituedPhrase(args));
+            content.Add(p.toSubstituedPhrase(args, returnValue));
         }
         public override string ToString()
         {
@@ -188,11 +196,13 @@ namespace MouseEngine.Lowlevel
     class Function: Phrase
     {
         public string name;
+        public int numargs;
 
-        public Function(CodeBlock code, string name):base(new Argument[] { }, null, new StringMatcher(name), new Opcode(opcodeType.call,new ArgumentValue?[1] { null } ))
+        public Function(CodeBlock code, string name, int numargs):base(new Argument[] { }, null, new StringMatcher(name), new Opcode(opcodeType.call,new IArgItem[] { new ArgumentValue(addressMode.addrint,default(substitutionType)), new ArgumentValue(addressMode.constint,0),new ArgItemReturnValue() } ))
         {
             inside = code;
             this.name = name;
+            this.numargs = numargs;
         }
         CodeBlock inside;
         public CodeBlock getBlock()
@@ -208,7 +218,7 @@ namespace MouseEngine.Lowlevel
 
     interface IOpcode
     {
-        IUnsubstitutedBytes getBytecode(Queue<ArgumentValue> input);
+        IUnsubstitutedBytes getBytecode(Queue<ArgumentValue> input, ref ArgumentValue? returnValue);
         
     }
 
@@ -235,9 +245,9 @@ namespace MouseEngine.Lowlevel
             return tmp;
         }
 
-        ArgumentValue?[] existingValues;
+        IArgItem[] existingValues;
         opcodeType type;
-        public Opcode (opcodeType type, ArgumentValue?[] existingValues)
+        public Opcode (opcodeType type, params IArgItem[] existingValues)
         {
             this.type = type;
             this.existingValues = existingValues;
@@ -247,7 +257,7 @@ namespace MouseEngine.Lowlevel
             }
         }
 
-        public IUnsubstitutedBytes getBytecode(Queue<ArgumentValue> values)
+        public IUnsubstitutedBytes getBytecode(Queue<ArgumentValue> values, ref ArgumentValue? returnValue)
         {
             List<byte> bytes= new List<byte>();
             List<Substitution> subs=new List<Substitution>();
@@ -256,9 +266,22 @@ namespace MouseEngine.Lowlevel
             ArgumentValue current;
             for (int i=0; i<existingValues.Length; i++)
             {
-                if (existingValues[i] != null)
+                if (existingValues[i] is ArgumentValue)
                 {
                     current = (ArgumentValue)existingValues[i];
+                }
+                else if (existingValues[i] is ArgItemReturnValue)
+                {
+                    if (returnValue != null)
+                    {
+                        current = (ArgumentValue)returnValue;
+                        returnValue = null;
+                    }
+                    else
+                    {
+                        throw new Errors.OpcodeFormatError(
+                            "You either didn't give a return value to a object that required it, or 2 opcodes requested one.");
+                    }
                 }
                 else
                 {

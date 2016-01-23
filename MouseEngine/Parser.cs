@@ -84,7 +84,7 @@ namespace MouseEngine
                 {
                     if (func == ProcessingInternal.GlobalFunction)
                     {
-                        dtb.functionDatabase.AddGlobalFunction(internalParser.getBlock(), funcName);
+                        dtb.functionDatabase.AddGlobalFunction(internalParser.getBlock(), funcName, internalParser.getNumArgs());
                     }
                     internalParser = null;
                 }
@@ -146,7 +146,7 @@ namespace MouseEngine
                 if (PropertyDefinition.match(strippedLine, dtb))
                 {
                     v = PropertyDefinition.getArgs();
-                    eobj.setAttr((string)v["property"], dtb.ParseAnything( (string)v["value"]));
+                    eobj.setAttr(v["property"], dtb.ParseAnything(v["value"]));
                 }
                 else if (tobj == ObjType.Kind && NewAttribute.match(strippedLine, dtb))
                 {
@@ -172,6 +172,8 @@ namespace MouseEngine
     {
         //List<byte> data;
 
+        static Matcher localVariableMathcer = new MultiStringMatcher(new[] { "name", "expression" }, "let ", " be ", "");
+
         CodeParser nested;
 
         CodeBlock block;
@@ -183,6 +185,8 @@ namespace MouseEngine
         int indentation;
         bool indented;
         int oldindentation;
+
+        Dictionary<string, LocalVariable> locals=new Dictionary<string, LocalVariable>();
 
         public CodeParser(FunctionDatabase dtb, ClassDatabase cdtb, int indentation)
         {
@@ -209,8 +213,20 @@ namespace MouseEngine
                 return pStatus.Finished;
             }
 
-            EvalExpression(line.Substring(newindentation));
+            string shortString = line.Substring(newindentation).Trim(' ');
 
+            if (localVariableMathcer.match(shortString, cdtb))
+            {
+                Dictionary<string, string> args = localVariableMathcer.getArgs();
+                block.add(Phrase.assign.toSubstituedPhrase(new[] { EvalExpression(args["expression"]),
+                    new ArgumentValue(addressMode.frameint, locals.Count*4+12),
+                }, null));
+                locals.Add(args["name"],new LocalVariable(locals.Count,ClassDatabase.integer));
+            }
+            else {
+
+                EvalExpression(shortString);
+            }
             return pStatus.Working;
         }
         /// <summary>
@@ -221,32 +237,60 @@ namespace MouseEngine
         /// <returns></returns>
         public ArgumentValue EvalExpression(string expression)
         {
+            if (locals.ContainsKey(expression))
+            {
+                return new ArgumentValue(addressMode.frameint, 12 + 4 * (int)locals[expression]);
+            }
             object b = cdtb.ParseAnything(expression);
             if (b != null)
             {
-                Console.WriteLine("b is an object \"" + b.ToString() + "\" of kind "+b.GetType().ToString()+"\"");
+                Console.WriteLine("b is an object \"" + b.ToString() + "\" of kind " + b.GetType().ToString() + "\"");
                 return toValue(b);
             }
-            else {
-                Phrase matchedExpression=null;
+            else
+            {
+                Phrase matchedExpression = null;
                 foreach (Phrase f in fdtb)
                 {
-                    if (f.match(expression,cdtb))
+                    if (f.match(expression, cdtb))
                     {
                         matchedExpression = f;
-           
+
                         break;
                     }
                 }
-                Dictionary<string, string> args= matchedExpression.lastMatchArgs();
-                List<ArgumentValue> argValues =new List<ArgumentValue>();
+                if (matchedExpression == null)
+                {
+                    throw new Errors.SyntaxError("No code way found to match \"" + expression+"\"");
+                }
+                Dictionary<string, string> args = matchedExpression.lastMatchArgs();
+                List<ArgumentValue> argValues = new List<ArgumentValue>();
                 foreach (Argument v in matchedExpression.arguments.Reverse())
                 {
-                    argValues.Add(EvalExpression( args[v.name]));
+                    if (v.isStackArgument)
+                    {
+                        ArgumentValue t = EvalExpression(args[v.name]);
+                        if (t.getMode() != addressMode.stack)
+                        {
+                            block.add(Phrase.push.toSubstituedPhrase(new ArgumentValue[] { t }, null));
+                        }
+                    }
+                    else
+                    {
+                        argValues.Add(EvalExpression(args[v.name]));
+                    }
                 }
                 argValues.Add(ArgumentValue.Push);
-                block.add(matchedExpression.toSubstituedPhrase(argValues));
-                return ArgumentValue.Pull;
+                if (matchedExpression.getReturnType() != null)
+                {
+                    block.add(matchedExpression.toSubstituedPhrase(argValues, ArgumentValue.Push));
+                    return ArgumentValue.Pull;
+                }
+                else
+                {
+                    block.add(matchedExpression.toSubstituedPhrase(argValues, ArgumentValue.Zero));
+                    return ArgumentValue.Zero;
+                }
             }
         }
 
@@ -262,19 +306,35 @@ namespace MouseEngine
                 return new ArgumentValue(addressMode.constint, (int)v);
             }
             //TODO: Add options for kind and item prototypes
-            throw new UnformatableObjectException("object \"" + v.ToString() + "\" of type \""+v.GetType().ToString()+" has no possible format");
+            throw new Errors.UnformatableObjectException("object \"" + v.ToString() + "\" of type \""+v.GetType().ToString()+" has no possible format");
         }
-    }
 
-    class UnformatableObjectException: Exception
-    {
-        public UnformatableObjectException(string message):base(message)
+        internal int getNumArgs()
         {
-
+            return locals.Count;
         }
     }
 
-    struct ArgumentValue
+    
+
+    interface IArgItem
+    {
+
+
+
+    }
+
+    struct ArgItemReturnValue: IArgItem
+    {
+
+    }
+
+    struct ArgItemFromArguments: IArgItem
+    {
+
+    }
+
+    struct ArgumentValue: IArgItem
     {
         static public ArgumentValue Zero = new ArgumentValue(addressMode.zero);
         static public ArgumentValue Push = new ArgumentValue(addressMode.stack);
@@ -325,7 +385,25 @@ namespace MouseEngine
 
         public byte[] getData()
         {
+            
             return data;
+
+        }
+    }
+
+    struct LocalVariable
+    {
+        public int index;
+        public IValueKind kind;
+        public static explicit operator int (LocalVariable a)
+        {
+            return a.index;
+        }
+
+        public LocalVariable(int index, IValueKind kind)
+        {
+            this.index = index;
+            this.kind = kind;
         }
     }
 }

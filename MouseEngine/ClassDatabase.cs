@@ -108,6 +108,11 @@ namespace MouseEngine
                 return null;
             }
         }
+
+        /// <summary>
+        /// This function gives a basic overview of what objects are defined.
+        /// </summary>
+        /// <returns>the string of all the defined objects.</returns>
         public string WriteData()
         {
             string s = "BEGIN DUMP";
@@ -144,7 +149,7 @@ namespace MouseEngine
                 {
                     try
                     {
-                        s+="\n\t\t"+l.Key+":"+l.Value.ToString();
+                        s+="\n\t\t"+l.Key+":"+k.getAttributes()[l.Key];
                     }
                     catch (KeyNotFoundException)
                     {
@@ -239,7 +244,7 @@ namespace MouseEngine
                 }
             }
 
-
+            Console.WriteLine(value.GetType() + " has been assigned");
 
             attributes[name] = value;
             
