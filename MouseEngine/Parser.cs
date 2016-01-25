@@ -193,6 +193,11 @@ namespace MouseEngine
 
         Dictionary<string, LocalVariable> locals=new Dictionary<string, LocalVariable>();
 
+        int getFramePos(int varindex)
+        {
+            return varindex*4;
+        }
+
         public CodeParser(Databases dtbs, int indentation)
         {
             fdtb = dtbs.fdtb;
@@ -216,18 +221,34 @@ namespace MouseEngine
             }
             else if (newindentation == oldindentation)
             {
+                Console.WriteLine("Finished parsing function");
+                DictUtil.SayDict(locals);
                 return pStatus.Finished;
             }
 
-            string shortString = line.Substring(newindentation).Trim(' ');
+            string shortString = line.Substring(newindentation).Trim(' ','\t');
 
             if (localVariableMathcer.match(shortString, cdtb))
             {
                 Dictionary<string, string> args = localVariableMathcer.getArgs();
-                block.add(Phrase.assign.toSubstituedPhrase(new[] { EvalExpression(args["expression"]),
-                    new ArgumentValue(addressMode.frameint, locals.Count*4+12),
-                }, null));
-                locals.Add(args["name"],new LocalVariable(locals.Count,ClassDatabase.integer));
+                if (locals.ContainsKey(args["name"]))
+                {
+                    ArgumentValue argva = EvalExpression(args["expression"]);
+                    LocalVariable lvar = locals[args["name"]];
+                    if (lvar.kind.isParent(argva.getKind()))
+                    {
+                        block.add(Phrase.assign.toSubstituedPhrase(new[] { argva, new ArgumentValue(addressMode.frameint, getFramePos( lvar.index)) },
+                            null));
+                    }
+                }
+                else
+                {
+                    ArgumentValue k = EvalExpression(args["expression"]);
+                    block.add(Phrase.assign.toSubstituedPhrase(new[] { k,
+                    new ArgumentValue(addressMode.frameint, getFramePos(locals.Count)),
+                    }, null));
+                    locals.Add(args["name"], new LocalVariable(locals.Count, k.getKind()));
+                }
             }
             else {
 
@@ -245,7 +266,7 @@ namespace MouseEngine
         {
             if (locals.ContainsKey(expression))
             {
-                return new ArgumentValue(addressMode.frameint, 12 + 4 * (int)locals[expression]);
+                return new ArgumentValue(addressMode.frameint, getFramePos((int)locals[expression]), locals[expression].kind);
             }
             object b = cdtb.ParseAnything(expression);
             if (b != null)
@@ -269,9 +290,13 @@ namespace MouseEngine
                     throw new Errors.SyntaxError("No code way found to match \"" + expression+"\"");
                 }
                 Dictionary<string, string> args = matchedExpression.lastMatchArgs();
-                List<ArgumentValue> argValues = new List<ArgumentValue>();
+                Stack<ArgumentValue> argValues = new Stack<ArgumentValue>();
                 foreach (Argument v in matchedExpression.arguments.Reverse())
                 {
+                    if (expression=="say the number r+n")
+                    {
+                        Console.WriteLine("line N");
+                    }
                     ArgumentValue t = EvalExpression(args[v.name]);
 
                     if (!v.type.isParent(t.getKind()))
@@ -290,14 +315,13 @@ namespace MouseEngine
                     }
                     else
                     {
-                        argValues.Add(t);
+                        argValues.Push(t);
                     }
                 }
-                argValues.Add(ArgumentValue.Push);
                 if (matchedExpression.getReturnType() != null)
                 {
                     block.add(matchedExpression.toSubstituedPhrase(argValues, ArgumentValue.Push));
-                    return ArgumentValue.Pull;
+                    return ArgumentValue.getPull(matchedExpression.getReturnType());
                 }
                 else
                 {
@@ -358,6 +382,13 @@ namespace MouseEngine
         static public ArgumentValue Push = new ArgumentValue(addressMode.stack);
         static public ArgumentValue Pull = Push;
 
+        static public ArgumentValue getPull(IValueKind kind)
+        {
+            ArgumentValue t = Pull;
+            t.kind = kind;
+            return t;
+        }
+
         addressMode mode;
         byte[] data;
         substitutionType? substitutionType;
@@ -401,6 +432,11 @@ namespace MouseEngine
             this.kind = kind;
         }
 
+        public ArgumentValue(addressMode mode, int value, IValueKind kind) : this(mode, value)
+        {
+            this.kind = kind;
+        }
+
         public addressMode getMode()
         {
             return mode;
@@ -441,6 +477,11 @@ namespace MouseEngine
         {
             this.index = index;
             this.kind = kind;
+        }
+
+        public override string ToString()
+        {
+            return index.ToString() + " of kind " + kind.ToString();
         }
     }
 }

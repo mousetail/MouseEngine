@@ -29,12 +29,12 @@
             }));
         public static Phrase setIOSystem = new Phrase(new[] { new Argument("system", ClassDatabase.integer) }, null,
             new MultiStringMatcher(new[] { "system" }, "set IO system to ", ""),
-            new Opcode(opcodeType.setiosys,new IArgItem[] { new ArgItemFromArguments(), new ArgumentValue(addressMode.zero) }));
+            new Opcode(opcodeType.setiosys, new IArgItem[] { new ArgItemFromArguments(), new ArgumentValue(addressMode.zero) }));
 
         public static Phrase setIOWindow = new Phrase(new[]
         {
             Argument.fromStack ("window",ClassDatabase.integer)
-        }, null, new MultiStringMatcher(new[] { "window" }, "set the default window to ", "" ),
+        }, null, new MultiStringMatcher(new[] { "window" }, "set the default window to ", ""),
             new Opcode(opcodeType.glk, new IArgItem[] {
                 new ArgumentValue(addressMode.constint, (int)glkFunction.glk_set_window),
                 new ArgumentValue(addressMode.constint,1),
@@ -42,19 +42,42 @@
             }));
 
         public static Phrase printUniChar = new Phrase(new[] { new Argument("char", ClassDatabase.integer) },
-            null, new MultiStringMatcher(new[] { "char" }, "print unicode char ","" ),
+            null, new MultiStringMatcher(new[] { "char" }, "print unicode char ", ""),
             new Opcode(opcodeType.streamunichar, new IArgItem[] { new ArgItemFromArguments() }));
 
         public static Phrase GiveError = new Phrase(new Argument[0], null, new StringMatcher("error"),
             new Opcode(opcodeType.debugtrap, new IArgItem[0]));
 
         public static Phrase GlkPoll = new Phrase(new Argument[0], ClassDatabase.integer, new StringMatcher("poll"),
-            new Opcode(opcodeType.copy, new ArgumentValue(addressMode.constint,256), ArgumentValue.Push),
+            new Opcode(opcodeType.copy, new ArgumentValue(addressMode.constint, 256), ArgumentValue.Push),
             new Opcode(opcodeType.glk, new ArgumentValue(addressMode.constint, (int)glkFunction.glk_select_poll),
-                new ArgumentValue(addressMode.constint,1), new ArgItemReturnValue()));
+                new ArgumentValue(addressMode.constint, 1), new ArgItemReturnValue()));
 
         public static Phrase IOprint = new Phrase(new Argument[1] { new Argument("text", ClassDatabase.str) },
             null, new MultiStringMatcher(new[] { "text" }, "say ", ""),
-            new Opcode(opcodeType.streamstr,new ArgItemFromArguments()));
+            new Opcode(opcodeType.streamstr, new ArgItemFromArguments()));
+
+        static public Phrase IOprintNum = new Phrase(new Argument[1] { new Argument("text", ClassDatabase.integer) },
+            null, new MultiStringMatcher(new[] { "text" }, "say the number ", ""),
+            new Opcode(opcodeType.streamnum, new ArgItemFromArguments())
+            );
+
+        static public Phrase IOprintTwoStack = new Phrase(new Argument[2] { new Argument("text",ClassDatabase.str),
+        new Argument("num",ClassDatabase.integer) }, null, new MultiStringMatcher(new[] { "text", "num" }, "DEBUG: ", " and ", ""),
+            new Opcode(opcodeType.streamstr, new ArgItemFromArguments()),
+            new Opcode(opcodeType.streamnum, new ArgItemFromArguments()));
+
+        static public Phrase MathDivide = new Phrase(new Argument[2] { new Argument("div1", ClassDatabase.integer)  ,
+            new Argument("div2", ClassDatabase.integer) }, ClassDatabase.integer,
+            new MultiStringMatcher(new[] { "div1", "div2" }, "", "/", ""),
+            new Opcode(opcodeType.div, new ArgItemFromArguments(), new ArgItemFromArguments(), new ArgItemReturnValue()));
+
+        static public Phrase PrintTwoStrings = new Phrase(new Argument[2] {
+            Argument.fromStack("t1",ClassDatabase.integer),
+            Argument.fromStack("t2",ClassDatabase.str) }, null,
+            new MultiStringMatcher(new string[] { "t1", "t2" }, "print ", " from stack ", ""),
+            new Opcode(opcodeType.streamnum, new ArgumentValue(addressMode.stack)),
+            new Opcode(opcodeType.streamstr, new ArgumentValue(addressMode.stack))
+            );
     }
 }

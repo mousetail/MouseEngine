@@ -6,18 +6,20 @@ The Bedroom is a room:
 	Description is 99
 #	k is bla
 	To start game:
+		let r be 5
 		set io system to 2
 		let n be split 0 into 3 of size 0 using 3 and rock 4
 		set the default window to n
-		print unicode char 97
-		print unicode char 98
-		print unicode char 99
-		print unicode char 100
-		print unicode char 101
-		print unicode char 102
-		say "er was eens"
-		say "Er was eens een muis: "
-		say "En die was niet pluis,"
+		say the number n
+		say "window 1"
+#		say the number r+n
+#TODO: Fix order of operations and parenthesis
+		let r be split n into 3 of size 75 using 33 and rock 9
+		say "r="
+		say the number r
+		say "Helemaal niet"
+		set the default window to r
+		say "hallo"
 #		poll
 		return n
 	Floor is "pink"

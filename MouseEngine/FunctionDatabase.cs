@@ -28,7 +28,9 @@ namespace MouseEngine.Lowlevel
         public FunctionDatabase()
         {
             globalFunctions = new List<Phrase>() { Phrase.returnf, Phrase.add, Phrase.makeWindow, Phrase.setIOSystem,
-            Phrase.setIOWindow, Phrase.printUniChar, Phrase.GiveError, Phrase.GlkPoll, Phrase.IOprint};
+                Phrase.IOprintNum,
+            Phrase.setIOWindow, Phrase.printUniChar, Phrase.GiveError, Phrase.GlkPoll, Phrase.IOprint, Phrase.IOprintTwoStack,
+            Phrase.MathDivide, Phrase.PrintTwoStrings};
         }
 
         public IEnumerator<Phrase> GetEnumerator()
@@ -135,6 +137,7 @@ namespace MouseEngine.Lowlevel
         public virtual IUnsubstitutedBytes toBytes()
         {
             Queue<ArgumentValue> argQue = new Queue<ArgumentValue>(argValues);
+            
             List<byte> tmp=new List<byte>();
             List<Substitution> substitutions=new List<Substitution>();
             ArgumentValue? returnValue = this.returnValue;

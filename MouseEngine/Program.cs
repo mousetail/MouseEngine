@@ -43,7 +43,7 @@ namespace MouseEngine
 
             Console.WriteLine(FileMode.Create.ToString());
 
-            Console.WriteLine("Finished, press enter to exitஇ");
+            Console.WriteLine("Finished, press enter to exit: ");
             Console.ReadLine();
         }
     }
