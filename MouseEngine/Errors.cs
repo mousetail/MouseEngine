@@ -81,4 +81,12 @@ namespace MouseEngine.Errors
 
         }
     }
+
+    class NumberOutOfRangeException: ParsingException
+    {
+        public NumberOutOfRangeException(string s): base(s)
+        {
+
+        }
+    }
 }

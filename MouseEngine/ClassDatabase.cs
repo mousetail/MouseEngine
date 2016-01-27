@@ -200,7 +200,7 @@ namespace MouseEngine
                 return existingObjects[s];
             }
             else if (s.StartsWith("\"") && s.EndsWith("\"")){
-                return s.Substring(1, s.Length - 2);
+                return s.Substring(1, s.Length - 2).substituteSlashes();
             }
             else
             {

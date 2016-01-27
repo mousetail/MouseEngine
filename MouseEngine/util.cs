@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections;
+using System.Linq;
 
 namespace MouseEngine
 {
@@ -57,6 +58,7 @@ namespace MouseEngine
             }
             return tmp;
         }
+
     }
 
     static class DictUtil
@@ -99,7 +101,7 @@ namespace MouseEngine
 
     static class StringUtil
     {
-        static List<char> whitespace = new List<char> () { ' ', '\t' };
+        public static char[] whitespace = new char[] { ' ', '\t' };
 
         public static int getIndentation(string input)
         {
@@ -109,6 +111,34 @@ namespace MouseEngine
             }
             return indentation;
         }
+
+        static Dictionary<string, string> replacements = new Dictionary<string, string>()
+        {
+            {"\\n","\n" },
+            {"\\\\","\\" },
+            {"\\t","\t" }
+        };
+        
+        public static string substituteSlashes(this string input)
+        {
+            foreach (KeyValuePair<string,string> rep in replacements)
+            {
+                input = input.Replace(rep.Key, rep.Value);
+            }
+            return input;
+        }
+
+        internal static bool isBlank(string line)
+        {
+            for (int i=0; i<line.Length; i++)
+            {
+                if (!whitespace.Contains(line[i]))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
     }
     static class NumUtil
     {
@@ -117,5 +147,7 @@ namespace MouseEngine
             return rto * ((value + rto-1) / rto);
         }
     }
+
+    
 }
 

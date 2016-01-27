@@ -27,10 +27,10 @@ namespace MouseEngine.Lowlevel
 
         public FunctionDatabase()
         {
-            globalFunctions = new List<Phrase>() { Phrase.returnf, Phrase.add, Phrase.makeWindow, Phrase.setIOSystem,
+            globalFunctions = new List<Phrase>() { Phrase.returnf,Phrase.makeWindow, Phrase.setIOSystem,
                 Phrase.IOprintNum,
-            Phrase.setIOWindow, Phrase.printUniChar, Phrase.GiveError, Phrase.GlkPoll, Phrase.IOprint, Phrase.IOprintTwoStack,
-            Phrase.MathDivide, Phrase.PrintTwoStrings};
+            Phrase.setIOWindow, Phrase.GiveError, Phrase.GlkPoll, Phrase.IOprint,
+            Phrase.MathDivide, Phrase.CondBasicIf, Phrase.CondBasicWhile,  Phrase.add};
         }
 
         public IEnumerator<Phrase> GetEnumerator()
@@ -110,7 +110,7 @@ namespace MouseEngine.Lowlevel
             return matcher.match(s, dtb);
         }
 
-        public SubstitutedPhrase toSubstituedPhrase(IEnumerable<ArgumentValue> arguments, ArgumentValue? returnValue)
+        public virtual SubstitutedPhrase toSubstituedPhrase(IEnumerable<ArgumentValue> arguments, ArgumentValue? returnValue)
         {
             return new SubstitutedPhrase(this, arguments.ToList(), returnValue);
         }
@@ -120,12 +120,40 @@ namespace MouseEngine.Lowlevel
             return base.ToString() + " defined by " + matcher.ToString();
         }
     }
-    internal class SubstitutedPhrase: IByteable {
+
+    interface IPhraseSub: IByteable
+    {
+
+    }
+
+    class ArbitrarySubstitutedPhrase : IByteable, IPhraseSub
+    {
+        Opcode[] codes;
+
+        public ArbitrarySubstitutedPhrase(params Opcode [] codes)
+        {
+            this.codes = codes;
+        }
+
+        public IUnsubstitutedBytes toBytes()
+        {
+            IUnsubstitutedBytes tmp = new DynamicUnsubstitutedBytes();
+            Queue<ArgumentValue> v = new Queue<ArgumentValue>();
+            ArgumentValue? returnType = null;
+            foreach (Opcode c in codes)
+            {
+                tmp.Combine(c.getBytecode(v, ref returnType));
+            }
+            return tmp;
+        }
+    }
+
+    internal class SubstitutedPhrase: IByteable, IPhraseSub {
 
 
-        List<ArgumentValue> argValues;
-        Phrase parent;
-        ArgumentValue? returnValue;
+        protected List<ArgumentValue> argValues;
+        protected Phrase parent;
+        protected ArgumentValue? returnValue;
         
         internal SubstitutedPhrase(Phrase f, List<ArgumentValue> values, ArgumentValue? returnValue)
         {
@@ -136,6 +164,8 @@ namespace MouseEngine.Lowlevel
 
         public virtual IUnsubstitutedBytes toBytes()
         {
+            //THERE IS AN APPROXIMATE COPY OF THIS CODE IN IFMATCHER.CS, all changes should be made in both files.
+
             Queue<ArgumentValue> argQue = new Queue<ArgumentValue>(argValues);
             
             List<byte> tmp=new List<byte>();
@@ -170,15 +200,15 @@ namespace MouseEngine.Lowlevel
 
 
 
-    internal class CodeBlock: IEnumerable<SubstitutedPhrase>
+    internal class CodeBlock: IEnumerable<IPhraseSub>
     {
         
-        List<SubstitutedPhrase> content=new List<SubstitutedPhrase>();
-        public void addRange(IEnumerable<SubstitutedPhrase> num)
+        List<IPhraseSub> content=new List<IPhraseSub>();
+        public void addRange(IEnumerable<IPhraseSub> num)
         {
             content.AddRange(num);
         }
-        public void add(SubstitutedPhrase num)
+        public void add(IPhraseSub num)
         {
             content.Add(num);
         }
@@ -195,15 +225,24 @@ namespace MouseEngine.Lowlevel
             content.Add(p.toSubstituedPhrase());
         }*/
 
-        public IEnumerator<SubstitutedPhrase> GetEnumerator()
+        public IEnumerator<IPhraseSub> GetEnumerator()
         {
-            return ((IEnumerable<SubstitutedPhrase>)content).GetEnumerator();
+            return ((IEnumerable<IPhraseSub>)content).GetEnumerator();
         }
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            return ((IEnumerable<SubstitutedPhrase>)content).GetEnumerator();
+            return ((IEnumerable<IPhraseSub>)content).GetEnumerator();
         }
+
+        /*public int getLength()
+        {
+            int length = 0;
+            for (IPhraseSub phr in content)
+            {
+
+            }
+        }*/
     }
 
     class Function: Phrase, IReferable

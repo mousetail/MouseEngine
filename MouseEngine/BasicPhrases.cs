@@ -41,10 +41,6 @@
                 new ArgumentValue(addressMode.zero)
             }));
 
-        public static Phrase printUniChar = new Phrase(new[] { new Argument("char", ClassDatabase.integer) },
-            null, new MultiStringMatcher(new[] { "char" }, "print unicode char ", ""),
-            new Opcode(opcodeType.streamunichar, new IArgItem[] { new ArgItemFromArguments() }));
-
         public static Phrase GiveError = new Phrase(new Argument[0], null, new StringMatcher("error"),
             new Opcode(opcodeType.debugtrap, new IArgItem[0]));
 
@@ -61,23 +57,27 @@
             null, new MultiStringMatcher(new[] { "text" }, "say the number ", ""),
             new Opcode(opcodeType.streamnum, new ArgItemFromArguments())
             );
-
-        static public Phrase IOprintTwoStack = new Phrase(new Argument[2] { new Argument("text",ClassDatabase.str),
-        new Argument("num",ClassDatabase.integer) }, null, new MultiStringMatcher(new[] { "text", "num" }, "DEBUG: ", " and ", ""),
-            new Opcode(opcodeType.streamstr, new ArgItemFromArguments()),
-            new Opcode(opcodeType.streamnum, new ArgItemFromArguments()));
+        
 
         static public Phrase MathDivide = new Phrase(new Argument[2] { new Argument("div1", ClassDatabase.integer)  ,
             new Argument("div2", ClassDatabase.integer) }, ClassDatabase.integer,
             new MultiStringMatcher(new[] { "div1", "div2" }, "", "/", ""),
             new Opcode(opcodeType.div, new ArgItemFromArguments(), new ArgItemFromArguments(), new ArgItemReturnValue()));
 
-        static public Phrase PrintTwoStrings = new Phrase(new Argument[2] {
-            Argument.fromStack("t1",ClassDatabase.integer),
-            Argument.fromStack("t2",ClassDatabase.str) }, null,
-            new MultiStringMatcher(new string[] { "t1", "t2" }, "print ", " from stack ", ""),
-            new Opcode(opcodeType.streamnum, new ArgumentValue(addressMode.stack)),
-            new Opcode(opcodeType.streamstr, new ArgumentValue(addressMode.stack))
+        
+
+        public static BlockPhrase CondBasicIf = new BlockPhrase(true, new[] { new Argument("condition", ClassDatabase.integer) },
+            new MultiStringMatcher(new[] { "condition" }, "if ", ":"), new Opcode[0],
+            new Opcode(opcodeType.jz, new ArgItemFromArguments(), new ArgumentValue(addressMode.constint, substitutionType.NextElse,
+                ClassDatabase.integer))
             );
+
+        public static BlockPhrase CondBasicWhile = new BlockPhrase(false, new[] { new Argument("condition", ClassDatabase.integer) },
+            new MultiStringMatcher(new[] { "condition" }, "while ", ":"), new Opcode[] {
+            new Opcode(opcodeType.jump,new ArgumentValue(addressMode.constint,substitutionType.BlockStart, ClassDatabase.integer)) },
+            new Opcode(opcodeType.jz, new ArgItemFromArguments(), new ArgumentValue(addressMode.constint, substitutionType.NextElse,
+                ClassDatabase.integer))); 
+
+
     }
 }

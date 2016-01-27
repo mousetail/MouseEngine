@@ -26,6 +26,9 @@ namespace MouseEngine.Lowlevel
         Checksum,
         maxMemory,
         WriterRef,
+        NextElse,
+        EndIf,
+        BlockStart
     }
     enum MemoryType : byte
     {
@@ -39,12 +42,14 @@ namespace MouseEngine.Lowlevel
         public int? data;
         public substitutionRank rank;
         public substitutionType type;
+        public bool completed;
         public Substitution(int position, substitutionType t, substitutionRank r, int? data)
         {
             type = t;
             rank = r;
             this.data = data;
             this.position = position;
+            completed = false;
         }
         public Substitution(int position, substitutionType t, substitutionRank r) : this(position, t, r, null)
         {
@@ -59,6 +64,19 @@ namespace MouseEngine.Lowlevel
             Substitution b = this;
             b.position = position;
             return b;
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (!(obj is Substitution))
+            {
+                return false;
+            }
+            else
+            {
+                Substitution s = (Substitution)obj;
+                return (s.position == position && s.type == type && s.rank == rank);
+            }
         }
     }
 
@@ -82,8 +100,8 @@ namespace MouseEngine.Lowlevel
         }
         public bool intersects(WriterComponent comp)
         {
-            return (comp.memoryPosition >= memoryPosition && comp.memoryPosition<=memoryPosition+getSize()) ||
-                    (memoryPosition >= comp.memoryPosition && comp.memoryPosition + comp.getSize() >= memoryPosition);
+            return (comp.memoryPosition >= memoryPosition && comp.memoryPosition<memoryPosition+getSize()) ||
+                    (memoryPosition >= comp.memoryPosition && comp.memoryPosition + comp.getSize() > memoryPosition);
         }
 
         public int GetPosition()
@@ -413,16 +431,68 @@ namespace MouseEngine.Lowlevel
                     break;
             }
         }
-
         static public byte[] toBytes(int k)
         {
-            byte[] tmp = new byte[4];
-            for (int i = 0; i < 4; i++)
+            return toBytes(k, true, true);
+        }
+        static public byte[] toBytes(int k, bool signed, bool force32)
+        {
+            unchecked
             {
-                tmp[i] = (byte)(k / pow(256, 3 - i));
-                k = k % (pow(256, 3 - i));
+                if (force32 || !signed)
+                {
+                    return toBytesN((uint)k, 4);
+                }
+
+                if (signed)
+                {
+                    if (k < 0x7F && k > -0x80)
+                    {
+                        return toBytesN((uint)k, 1);
+                    }
+                    else if (k < 0x7FFF && k > -0x8000)
+                    {
+                        return toBytesN((uint)k, 2);
+                    }
+                    else if (k < 0x7FFFFFFF && k > -0x80000000)
+                    {
+                        return toBytesN((uint)k, 4);
+                    }
+                    else
+                    {
+                        throw new Errors.NumberOutOfRangeException("tried to convert " + k.ToString() + "to a signed integer");
+                    }
+                }
+                else
+                {
+                    if (k < 0x100)
+                    {
+                        return toBytesN((uint)k, 1);
+                    }
+                    else if (k < 0x10000)
+                    {
+                        return toBytesN((uint)k, 2);
+                    }
+                    else
+                    {
+                        return toBytesN((uint)k, 4);
+                    }
+                }
             }
-            return tmp;
+        }
+
+        static byte[] toBytesN(uint k, int n)
+        {
+            unchecked
+            {
+                byte[] tmp = new byte[n];
+                for (int i = 0; i < n; i++)
+                {
+                    tmp[i] = (byte)(k / pow(256, n - 1 - i));
+                    k = (uint)(k % (pow(256, n - 1 - i)));
+                }
+                return tmp;
+            }
         }
 
         static public int toInt(byte[] k)

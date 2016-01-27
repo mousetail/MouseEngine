@@ -11,10 +11,6 @@ namespace MouseEngine
     enum pStatus: byte {Working, Finished, SyntaxError, RelationError}
     enum ObjType: byte { Object, Kind}
     enum ProcessingInternal: byte { GlobalFunction, LocalFunction }
-    
-
-        
-    
 
     class Parser
     {
@@ -28,7 +24,7 @@ namespace MouseEngine
         }
         public void Parse(String line)
         {
-            if (line[0] != '#' && line[0] != '/')
+            if (line[0] != '#' && line[0] != '/' && !StringUtil.isBlank(line))
             {
                 pStatus result = currentBlock.Parse(line);
                 while (result == pStatus.Finished)
@@ -190,6 +186,7 @@ namespace MouseEngine
         int indentation;
         bool indented;
         int oldindentation;
+        
 
         Dictionary<string, LocalVariable> locals=new Dictionary<string, LocalVariable>();
 
@@ -206,10 +203,39 @@ namespace MouseEngine
             oldindentation = indentation;
             indented = false;
             block = new CodeBlock();
-
         }
+
+        private CodeParser(ClassDatabase cdtb, FunctionDatabase fdtb, StringDatabase sdtb, int indentation, Dictionary<string, LocalVariable> loc)
+        {
+            this.cdtb = cdtb;
+            this.sdtb = sdtb;
+            this.fdtb = fdtb;
+            oldindentation = indentation;
+            locals = loc;
+            indented = false;
+            block = new CodeBlock();
+        }
+
+
+        
+        BlockPhrase ifStarter;
+        ArgumentValue[] ifArgValues;
+
         public pStatus parse(string line)
         {
+            if (nested != null)
+            {
+                pStatus stat= nested.parse(line);
+                if (stat==pStatus.Working || stat == pStatus.SyntaxError)
+                {
+                    return stat;
+                }
+                else if (stat == pStatus.Finished)
+                {
+                    block.add(ifStarter.toSubstituedPhrase(ifArgValues, nested.getBlock()));
+                    nested = null;
+                }
+            }
             int newindentation = StringUtil.getIndentation(line);
             if (!indented && newindentation > oldindentation)
             {
@@ -226,7 +252,7 @@ namespace MouseEngine
                 return pStatus.Finished;
             }
 
-            string shortString = line.Substring(newindentation).Trim(' ','\t');
+            string shortString = line.Substring(newindentation).Trim(StringUtil.whitespace);
 
             if (localVariableMathcer.match(shortString, cdtb))
             {
@@ -260,7 +286,8 @@ namespace MouseEngine
         /// Note that this function will add phrases to the internal code block, the order iterations of this function are called
         /// matters.
         /// </summary>
-        /// <param name="expression"></param>
+        /// <param name="expression">the expression te be evaluated. This should be stripped of all indentation and extra
+        /// spaces</param>
         /// <returns></returns>
         public ArgumentValue EvalExpression(string expression)
         {
@@ -293,10 +320,6 @@ namespace MouseEngine
                 Stack<ArgumentValue> argValues = new Stack<ArgumentValue>();
                 foreach (Argument v in matchedExpression.arguments.Reverse())
                 {
-                    if (expression=="say the number r+n")
-                    {
-                        Console.WriteLine("line N");
-                    }
                     ArgumentValue t = EvalExpression(args[v.name]);
 
                     if (!v.type.isParent(t.getKind()))
@@ -325,7 +348,17 @@ namespace MouseEngine
                 }
                 else
                 {
-                    block.add(matchedExpression.toSubstituedPhrase(argValues, ArgumentValue.Zero));
+                    if (matchedExpression is BlockPhrase)
+                    {
+                        nested = new CodeParser(cdtb,fdtb,sdtb,indentation,locals);
+                        ifStarter = (BlockPhrase)matchedExpression;
+                        ifArgValues = argValues.ToArray();
+                    }
+                    else
+                    {
+                        block.add(matchedExpression.toSubstituedPhrase(argValues, ArgumentValue.Zero));
+
+                    }
                     return ArgumentValue.Zero;
                 }
             }
@@ -361,19 +394,14 @@ namespace MouseEngine
 
     interface IArgItem
     {
-
-
-
     }
 
     struct ArgItemReturnValue: IArgItem
     {
-
     }
 
     struct ArgItemFromArguments: IArgItem
     {
-
     }
 
     struct ArgumentValue: IArgItem
@@ -407,9 +435,41 @@ namespace MouseEngine
         public ArgumentValue(addressMode mode, int value)
         {
             this.mode = mode;
-            this.data = Writer.toBytes(value);
             this.substitutionType = null;
             this.substitutionData = 0;
+            bool shorten = false; ;
+            if (mode == addressMode.constint)
+            {
+                data = Writer.toBytes(value, true, false);
+                shorten = true;
+            }
+            else if ((mode==addressMode.frameint) || (mode==addressMode.ramint) || (mode == addressMode.addrint))
+            {
+                data = Writer.toBytes(value, true, false);
+                shorten = true;
+            }
+            else
+            {
+                this.data = Writer.toBytes(value);
+                shorten = false;
+            }
+
+            if (shorten) {
+                switch (data.Length)
+                {
+                    case 4:
+                        break;
+                    case 2:
+                        this.mode = (addressMode)((int)mode - 1);
+                        break;
+                    case 1:
+                        this.mode = (addressMode)((int)mode - 2);
+                        break;
+                    default:
+                        throw new Errors.NumberOutOfRangeException("address mode should return a either 4,2, or 1");
+                }
+            }
+
             kind = ClassDatabase.integer;
         }
 

@@ -30,6 +30,8 @@ namespace MouseEngine.Lowlevel
 
         void WriteSlice(int position, byte[] what)
         ;
+
+        void Complete(Substitution s);
         
     }
 
@@ -74,7 +76,7 @@ namespace MouseEngine.Lowlevel
         {
             get
             {
-                return Substitutions;
+                return Substitutions.Where((s=> !s.completed ));
             }
             set
             {
@@ -118,6 +120,18 @@ namespace MouseEngine.Lowlevel
         public void WriteSlice(int position, byte[] what)
         {
             Bytes.WriteSlice(position, what);
+        }
+
+        public void Complete(Substitution s)
+        {
+            for (int i=0; i<Substitutions.Length; i++)
+            {
+                if (Substitutions[i].Equals(s))
+                {
+                    Substitutions[i].completed = true;
+                    return;
+                }
+            }
         }
     }
 
@@ -240,6 +254,11 @@ namespace MouseEngine.Lowlevel
         public void WriteSlice(int position, byte[] what)
         {
             Combine(new UnsubstitutedBytes(what, new Substitution[0]), position);
+        }
+
+        public void Complete(Substitution sub)
+        {
+            Substitutions.Remove(sub);
         }
     }
 

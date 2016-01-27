@@ -47,6 +47,7 @@
     <Compile Include="ClassDatabase.cs" />
     <Compile Include="Errors.cs" />
     <Compile Include="FunctionDatabase.cs" />
+    <Compile Include="IfMatcher.cs" />
     <Compile Include="Opcodes.cs" />
     <Compile Include="Parser.cs" />
     <Compile Include="PhraseRecognizer.cs" />
