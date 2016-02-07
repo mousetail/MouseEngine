@@ -28,7 +28,9 @@ namespace MouseEngine.Lowlevel
         WriterRef,
         NextElse,
         EndIf,
-        BlockStart
+        BlockStart,
+        endCondition,
+        conditionDestination
     }
     enum MemoryType : byte
     {
@@ -66,6 +68,11 @@ namespace MouseEngine.Lowlevel
             return b;
         }
 
+        public override int GetHashCode()
+        {
+            return position + (int)type<<2 + (int)rank<<4 + GetType().GetHashCode()<<8;
+        }
+
         public override bool Equals(object obj)
         {
             if (!(obj is Substitution))
@@ -98,11 +105,7 @@ namespace MouseEngine.Lowlevel
         {
             memoryPosition = position;
         }
-        public bool intersects(WriterComponent comp)
-        {
-            return (comp.memoryPosition >= memoryPosition && comp.memoryPosition<memoryPosition+getSize()) ||
-                    (memoryPosition >= comp.memoryPosition && comp.memoryPosition + comp.getSize() > memoryPosition);
-        }
+        
 
         public int GetPosition()
         {
@@ -112,6 +115,16 @@ namespace MouseEngine.Lowlevel
         public virtual int getID()
         {
             return -1;
+        }
+
+        internal Range getRange()
+        {
+            return new Range(memoryPosition, memoryPosition + getSize());
+        }
+
+        public bool intersects(WriterComponent other)
+        {
+            return getRange().intersects(other.getRange());
         }
     }
 
@@ -184,7 +197,7 @@ namespace MouseEngine.Lowlevel
 
             int start = tmp.Count;
             IUnsubstitutedBytes b = new UnsubstitutedBytes(tmp.ToArray(), substitutions.ToArray());
-            foreach (SubstitutedPhrase sf in func.getBlock())
+            foreach (ICodeByteable sf in func.getBlock())
             {
                 b.Combine(sf.toBytes());
             }
@@ -245,7 +258,7 @@ namespace MouseEngine.Lowlevel
     }
 
 
-    internal class Writer
+    public class Writer
     {
         List<WriterComponent> Components;
         List<WriterComponent> ExistingComponents;
@@ -381,7 +394,7 @@ namespace MouseEngine.Lowlevel
 
         int ramstart = 0;
 
-        public void Substitute(IUnsubstitutedBytes input, Substitution what)
+        void Substitute(IUnsubstitutedBytes input, Substitution what)
         {
             switch (what.type)
             {
@@ -410,6 +423,7 @@ namespace MouseEngine.Lowlevel
                     input.WriteSlice(what.position, toBytes(1024));
                     break;
                 case substitutionType.WriterRef:
+#if true
                     WriterComponent wrtcmp=null;
                     foreach (WriterComponent p in ExistingComponents)
                     {
@@ -427,7 +441,9 @@ namespace MouseEngine.Lowlevel
                     {
                         throw new Errors.IDMismatchException("ID " + what.data.ToString() + " refered to, but not set to any object");
                     }
-
+#else
+                    input.WriteSlice(what.position, toBytes(int.MaxValue));
+#endif
                     break;
             }
         }

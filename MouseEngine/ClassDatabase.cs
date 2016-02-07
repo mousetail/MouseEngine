@@ -6,11 +6,11 @@ using System.Threading.Tasks;
 
 namespace MouseEngine
 {
-    struct Databases
+    public struct Databases
     {
-        public ClassDatabase cdtb;
-        public Lowlevel.FunctionDatabase fdtb;
-        public StringDatabase sdtb;
+        internal ClassDatabase cdtb;
+        internal Lowlevel.FunctionDatabase fdtb;
+        internal StringDatabase sdtb;
 
         public static Databases getDefault()
         {
@@ -22,6 +22,11 @@ namespace MouseEngine
         }
 
         static public int ids=0;
+
+        public string WriteData()
+        {
+            return cdtb.WriteData();
+        }
     }
 
     struct Nothing
@@ -219,7 +224,7 @@ namespace MouseEngine
         public static IValueKind str = new StringValueKind();
         public static IValueKind integer = new IntValueKind();
         public static IValueKind nothing = new VoidValueKind();
-
+        internal static IValueKind condition;
     }
     class Prototype
     {

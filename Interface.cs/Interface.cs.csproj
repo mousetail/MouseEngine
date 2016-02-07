@@ -4,11 +4,11 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{64E8DB8C-0254-4F64-BEDC-5AC0ED0740AE}</ProjectGuid>
-    <OutputType>Library</OutputType>
+    <ProjectGuid>{959D6D75-0CCE-4009-9A2B-8E785E92C053}</ProjectGuid>
+    <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>MouseEngine</RootNamespace>
-    <AssemblyName>MouseEngine</AssemblyName>
+    <RootNamespace>Interface.cs</RootNamespace>
+    <AssemblyName>Interface.cs</AssemblyName>
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
@@ -32,9 +32,6 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
-  <PropertyGroup>
-    <StartupObject />
-  </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -46,25 +43,17 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BasicPhrases.cs" />
-    <Compile Include="ClassDatabase.cs" />
-    <Compile Include="Errors.cs" />
-    <Compile Include="FunctionDatabase.cs" />
-    <Compile Include="IfMatcher.cs" />
-    <Compile Include="Opcodes.cs" />
-    <Compile Include="Parser.cs" />
-    <Compile Include="PhraseRecognizer.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="StringDatabase.cs" />
-    <Compile Include="UnsubstitutedBytes.cs" />
-    <Compile Include="util.cs" />
-    <Compile Include="Writer.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
-    <None Include="ClassDiagram1.cd" />
-    <None Include="Whatever is this.cd" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MouseEngine\MouseEngine.csproj">
+      <Project>{64e8db8c-0254-4f64-bedc-5ac0ed0740ae}</Project>
+      <Name>MouseEngine</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

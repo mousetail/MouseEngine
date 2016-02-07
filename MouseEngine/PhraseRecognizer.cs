@@ -7,115 +7,38 @@ using System.Threading.Tasks;
 namespace MouseEngine
 {
     
-    abstract class Matcher
+    public abstract class Matcher
     {
         public static char[] splits = { ' ' };
-        abstract public bool match(string s, ClassDatabase dtb);
+        abstract public bool match(string s);
+        
+
         public virtual Dictionary<string, string> getArgs()
         {
             return null;
         }
-    }
-
-    class SeqMatcher : Matcher
-    {
-
-        Matcher[] prob;
-        /*
-        public SeqMatcher(Matcher[] prob)
+        [Obsolete("the class database argument is no longer required")]
+        internal bool match(string s, ClassDatabase cdtb)
         {
-            this.prob = prob;
-        }
-         */
-        public SeqMatcher(params Matcher[] prob)
-        {
-            this.prob = prob;
-        }
-
-        public override bool match(string s, ClassDatabase db)
-        {
-            string[] words = s.Split(Matcher.splits);
-
-            bool suc = true;
-            if (words.Length < prob.Length)
-            {
-                return false;
-            }
-            int istart = 0;
-            int iend = words.Length;
-            int j = 0;
-            string[] xwords;
-            while (istart < words.Length)
-            {
-                suc = false;
-                while (iend > istart)
-                {
-                    xwords = ListUtil.slice(words, istart, iend);
-                    if (prob[j].match(string.Join(" ", xwords),db))
-                    {
-                        suc = true;
-                        istart = iend;
-                        iend = words.Length;
-                        j += 1;
-                        if (j >= prob.Length && istart < words.Length)
-                        {
-                            //Console.WriteLine("I understood you untill " + words[istart]);
-                            return false;
-                        }
-                        break;
-                    }
-                    else
-                    {
-                        iend -= 1;
-                    }
-                }
-
-                if (!suc)
-                {
-                    //Debugger.Log(1, "parser", "failure due to iend>words.length");
-                    return false;
-                }
-
-            }
-            if (j == prob.Length)
-            {
-                return true;
-            }
-            else
-            {
-                //Debugger.Log(1, "parser", "failure due to prob <= j");
-                return false;
-            }
-        }
-        public override Dictionary<string, string> getArgs()
-        {
-            Dictionary<string, string> a = new Dictionary<string, string>();
-            foreach (Matcher m in prob)
-            {
-                Dictionary<string, string> dict = m.getArgs();
-                if (dict != null)
-                {
-                    foreach (var KeyValuePair in dict)
-                    {
-                        a.Add(KeyValuePair.Key, KeyValuePair.Value);
-                    }
-                }
-            }
-            return a;
+            return match(s);
         }
     }
-
+    
     /// <summary>
     /// Returns false every time
     /// </summary>
     class VoidMather : Matcher
     {
-        public override bool match(string s, ClassDatabase db)
+        public override bool match(string s)
         {
             return false;
         }
     }
 
+
+    /// <summary>
+    /// Matches a literal text
+    /// </summary>
     class StringMatcher : Matcher
     {
         public string Text;
@@ -123,7 +46,7 @@ namespace MouseEngine
         {
             Text = what;
         }
-        public override bool match(string s, ClassDatabase db)
+        public override bool match(string s)
         {
             bool result = s.Equals(Text);
             if (result)
@@ -138,101 +61,8 @@ namespace MouseEngine
 
         }
     }
-    class StringAsVar : Matcher
-    {
-        string varname;
-        string value;
-        public StringAsVar(string varname)
-        {
-            this.varname = varname;
-        }
 
-        public StringAsVar()
-        {
-            varname = "Text";
-        }
-
-        public override bool match(string s, ClassDatabase db)
-        {
-            value = s;
-            return true;
-        }
-        public override Dictionary<string, string> getArgs()
-        {
-            return new Dictionary<string, string> { { varname, value } };
-        }
-    }
-    /*
-    class DirectionMatcher : Matcher
-    {
-        string name;
-        direction d;
-
-        public DirectionMatcher(string n)
-        {
-            name = n;
-        }
-
-        public override bool match(string s, World g)
-        {
-            switch (s)
-            {
-                case "n":
-                case "north":
-                    d = direction.North;
-                    return true;
-                case "e":
-                case "east":
-                    d = direction.East;
-                    return true;
-                case "s":
-                case "south":
-                    d = direction.South;
-                    return true;
-                case "w":
-                case "west":
-                    d = direction.West;
-                    return true;
-                case "in":
-                    d = direction.In;
-                    return true;
-                case "out":
-                    d = direction.Out;
-                    return true;
-                case "u":
-                case "up":
-                    d = direction.Up;
-                    return true;
-                case "d":
-                case "down":
-                    d = direction.Down;
-                    return true;
-                case "northeast":
-                case "ne":
-                    d = direction.Northeast;
-                    return true;
-                case "northwest":
-                case "nw":
-                    d = direction.Northwest;
-                    return true;
-                case "sw":
-                case "southwest":
-                    d = direction.Southwest;
-                    return true;
-                case "se":
-                case "southeast":
-                    d = direction.Southeast;
-                    return true;
-                default:
-                    return false;
-            }
-        }
-        public override Dictionary<string, string> getArgs()
-        {
-            return new Dictionary<string, string>() { { name, d } };
-        }
-    }
-    */
+    
     class orMatcher : Matcher
     {
         Matcher[] m;
@@ -241,12 +71,12 @@ namespace MouseEngine
         {
             m = ms;
         }
-        public override bool match(string s, ClassDatabase db)
+        public override bool match(string s)
         {
             selected = null;
             foreach (Matcher f in m)
             {
-                if (f.match(s,db))
+                if (f.match(s))
                 {
                     selected = f;
                     return true;
@@ -260,121 +90,203 @@ namespace MouseEngine
         }
     }
 
-    /*
-    class NewNameMatcher : Matcher
+    
+
+    public struct Range: IComparable<Range>
     {
-        string name;
-        ClassDatabase dtb;
-        public NewNameMatcher()
+        public int start;
+        public int end;
+        public Range(int start, int end)
         {
-            
-        }
-        public override bool match(string s, ClassDatabase database)
-        {
-            if (3 < s.Length && s.Length < 8)
+            this.start = start;
+            this.end = end;
+#if DEBUG
+            if (start> end)
             {
-                name = s;
-                this.dtb = database;
-                return true;
+                throw new IndexOutOfRangeException("start can't be more than end");
             }
-            else
+#endif
+        }
+
+        public bool intersects(Range comp)
+        {
+            return (start >= comp.start && start <= comp.end) ||
+                    (comp.start >= start && comp.start<= end);
+        }
+
+        public bool intersects(int other)
+        {
+            return (start <= other && other <= end);
+        }
+
+        public int CompareTo(Range other)
+        {
+            return start.CompareTo(other.start);
+        }
+
+        public int length
+        {
+            get
             {
-                return false;
+                return end - start;
             }
         }
-        public override Dictionary<string, string> getArgs()
-        {
-            return new Dictionary<string, string> { { "object", dtb.getOrMakeObject(name) } };
-        }
-    }*/
-    class KindMatcher : Matcher
-    {
-        string name;
-        public override bool match(string s, ClassDatabase dtb)
-        {
-            name = s;
-            return true;
-        }
-        public override Dictionary<string, string> getArgs()
-        {
-            return base.getArgs();
-        }
+
     }
-    class AttributeMatcher: StringAsVar
-    {
-        public override bool match(string s, ClassDatabase db)
-        {
-            if (4 <= s.Length && s.Length <= 8)
-            {
-                return base.match(s, db);
-            }
-            return false;
-        }
-    }
-    class MultiStringMatcher: Matcher
+
+    public class MultiStringMatcher: Matcher
     {
         string[] segments;
         string[] args;
         string[] argsnames;
-
-        public MultiStringMatcher(params string[] args)
-        {
-            segments = args;
-            this.args = new string[segments.Length - 1];
-        }
-        public MultiStringMatcher(string[] Argsnames, params string[] args):this(args)
+        
+        public MultiStringMatcher(string[] Argsnames, params string[] args)
         {
             argsnames = Argsnames;
+            segments = args;
+            if (argsnames.Length != args.Length - 1)
+            {
+                throw new Errors.OpcodeFormatError("inequal ar names and argument fields");
+            }
+            
         }
 
-        public override bool match(string str, ClassDatabase dtb)
+        public override bool match(string str)
         {
             if (segments.Length == 0)
             {
                 return true;
             }
+
+            if (str.StartsWith("(") && str.EndsWith(")"))
+            {
+                str = str.Substring(1, str.Length - 2);
+            }
+
             else if (!str.StartsWith(segments[0],StringComparison.CurrentCultureIgnoreCase))
             {
                 return false;
             }
-            int lastpos = segments[0].Length;
-            int currentIndex = -1;
-            int segmentstart = 0;
-            int segmentEnd = lastpos;
-            for (int i=1; i<segments.Length; i++)
+            
+            //This code finds the parts inside parethesis that won't be scanned, because
+            //They are enclosed in parenthesis
+
+            List<Range> protectedParts=new List<Range>();
+            int pnesting = 0;
+            int pstartpos = 0;
+            for (int i=0; i<str.Length; i++)
             {
-                if (segments[i] != "") {
-                    currentIndex = str.IndexOf(segments[i], lastpos, StringComparison.CurrentCultureIgnoreCase);
-                    if (currentIndex < lastpos)
-                    {/*
-                        Console.Write("Can't find \"");
-                        Console.Write(segments[i]);
-                        Console.Write("\" in \"");
-                        Console.Write(str);
-                        Console.Write("\"index: ");
-                        Console.Write(currentIndex);
-                        Console.Write("max index: ");
-                        Console.WriteLine(lastpos);*/
-                        return false;
+                if (str[i] == '(')
+                {
+                    pnesting += 1;
+                    if (pnesting == 1) //It was 0 before
+                    {
+                        pstartpos = i;
                     }
                 }
-                else
+                else if (str[i]==')')
                 {
-                    currentIndex = str.Length;
+                    pnesting -= 1;
+                    if (pnesting == 0)
+                    {
+                        protectedParts.Add(new Range(pstartpos, i));
+                    }
                 }
-                segmentstart = lastpos;
-                segmentEnd = currentIndex;
-                string tmp = str.Substring(segmentstart, segmentEnd-segmentstart);
-                args[i - 1] = tmp;
-                lastpos = segmentEnd + segments[i].Length;
-                /*
-                Console.Write("Found phrase \"");
-                Console.Write(segments[i]);
-                Console.Write("\" inbetween area: ");
-                Console.Write(tmp);
-                Console.WriteLine();
-                */
             }
+
+
+            string[] stringparts = new string[protectedParts.Count + 1];
+            pstartpos = 0;
+            for (int i=0; i<stringparts.Length-1; i++)
+            {
+                stringparts[i] = str.Substring(pstartpos, protectedParts[i].start);
+                pstartpos = protectedParts[i].end;
+            }
+            stringparts[stringparts.Length-1] = str.Substring(pstartpos);
+//Works till here
+            List<Range> argumentPos = new List<Range>();
+
+            int currentIndex = 0;
+            bool going=true;
+            int firstMatch=0;
+            int lastpos = 0;
+            int strlength = 0;
+            for (int i=0; i < stringparts.Length; i++)
+            {
+                going = true;
+                while (going){
+                    if (stringparts[i].Length < lastpos - strlength)
+                    {
+                        firstMatch = -1;
+                    }
+                    else if (currentIndex==segments.Length-1 && segments[currentIndex]=="")
+                    {
+                        firstMatch = str.Length - strlength;
+                    }
+                    else
+                    {
+                        firstMatch = stringparts[i].IndexOf(segments[currentIndex], Math.Max(0,  lastpos-strlength), StringComparison.CurrentCultureIgnoreCase);
+                    }
+                    if (firstMatch < 0)
+                    {
+                        going = false;
+                    }
+                    else
+                    {
+                        if (currentIndex == 0)
+                        {
+
+                        }
+                        else {
+                            argumentPos.Add(new Range(lastpos, strlength+firstMatch));
+                        }
+
+                        lastpos = strlength + firstMatch + segments[currentIndex].Length;
+
+#if DEBUG
+                        if (segments[currentIndex].Length!=0 && stringparts[i][lastpos -strlength - 1] != segments[currentIndex][segments[currentIndex].Length - 1])
+                        {
+                            throw new IndexOutOfRangeException("whatever");
+                        }
+#endif
+
+                        if (lastpos-strlength >= stringparts[i].Length)
+                        {
+                            going = false;
+                        }
+
+
+
+                        currentIndex += 1;
+                        if (currentIndex == segments.Length || currentIndex>=str.Length)
+                        {
+                            goto loopend;
+                        }
+
+
+                    }
+
+                }
+                if (i < protectedParts.Count)
+                {
+                    strlength += stringparts[i].Length + protectedParts[i].length;
+                }
+            }
+
+            loopend:
+
+            if (currentIndex != segments.Length)
+            {
+                return false;
+            }
+
+            args = new string[argumentPos.Count];
+
+            for (int i=0; i < argumentPos.Count; i++)
+            {
+                args[i] = str.Substring(argumentPos[i].start, argumentPos[i].end - argumentPos[i].start);
+            }
+            
             return true;
             
         }

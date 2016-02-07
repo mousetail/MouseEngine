@@ -64,8 +64,8 @@
             new MultiStringMatcher(new[] { "div1", "div2" }, "", "/", ""),
             new Opcode(opcodeType.div, new ArgItemFromArguments(), new ArgItemFromArguments(), new ArgItemReturnValue()));
 
-        
 
+        /*
         public static BlockPhrase CondBasicIf = new BlockPhrase(true, new[] { new Argument("condition", ClassDatabase.integer) },
             new MultiStringMatcher(new[] { "condition" }, "if ", ":"), new Opcode[0],
             new Opcode(opcodeType.jz, new ArgItemFromArguments(), new ArgumentValue(addressMode.constint, substitutionType.NextElse,
@@ -77,6 +77,13 @@
             new Opcode(opcodeType.jump,new ArgumentValue(addressMode.constint,substitutionType.BlockStart, ClassDatabase.integer)) },
             new Opcode(opcodeType.jz, new ArgItemFromArguments(), new ArgumentValue(addressMode.constint, substitutionType.NextElse,
                 ClassDatabase.integer))); 
+                */
+        public static Phrase DebugCheckStack = new Phrase(new Argument[0],
+            null, new MultiStringMatcher(new string[0], "check the stack"),
+                new Opcode(opcodeType.stkcount, ArgumentValue.Push),
+                new Opcode(opcodeType.jz, ArgumentValue.Pull, new ArgumentValue(addressMode.constint, 5)),
+                new Opcode(opcodeType.debugtrap, ArgumentValue.Pull)
+            );
 
 
     }

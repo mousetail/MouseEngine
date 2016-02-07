@@ -61,7 +61,7 @@ namespace MouseEngine
 
     }
 
-    static class DictUtil
+    public static class DictUtil
     {
         public static void CombineInPlace<T1, T2>(Dictionary<T1, T2> a, Dictionary<T1, T2> b)
         {
@@ -96,6 +96,17 @@ namespace MouseEngine
                     Console.WriteLine(theta.Value);
                 }
             }
+        }
+
+        public static string toAdvancedString<T1,T2>(this Dictionary<T1,T2> input)
+        {
+            string s = "{";
+            foreach (KeyValuePair<T1,T2> pair in input)
+            {
+                s += pair.Key.ToString() + ": " + pair.Value.ToString() + ", ";
+            }
+            s += "}";
+            return s;
         }
     }
 

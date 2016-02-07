@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace MouseEngine.Errors
 {
-    class ParsingException: Exception
+    public class ParsingException: Exception
     {
         int linenumber;
         public ParsingException(string s) : base(s)
@@ -85,6 +85,18 @@ namespace MouseEngine.Errors
     class NumberOutOfRangeException: ParsingException
     {
         public NumberOutOfRangeException(string s): base(s)
+        {
+
+        }
+    }
+
+    class IndentationError: ParsingException
+    {
+        public IndentationError(string s) : base(s)
+        {
+
+        }
+        public IndentationError(): base("unexpected indent")
         {
 
         }

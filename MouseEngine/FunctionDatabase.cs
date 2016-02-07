@@ -22,6 +22,7 @@ namespace MouseEngine.Lowlevel
     internal class FunctionDatabase: IEnumerable<Phrase>
     {
         List<Phrase> globalFunctions;
+        public Condition[] globalConditions;
 
         //public static Phrase 
 
@@ -30,7 +31,11 @@ namespace MouseEngine.Lowlevel
             globalFunctions = new List<Phrase>() { Phrase.returnf,Phrase.makeWindow, Phrase.setIOSystem,
                 Phrase.IOprintNum,
             Phrase.setIOWindow, Phrase.GiveError, Phrase.GlkPoll, Phrase.IOprint,
-            Phrase.MathDivide, Phrase.CondBasicIf, Phrase.CondBasicWhile,  Phrase.add};
+            Phrase.MathDivide, Phrase.DebugCheckStack,  Phrase.add};
+            globalConditions = new[]
+            {
+                Condition.CondEquals
+            };
         }
 
         public IEnumerator<Phrase> GetEnumerator()
@@ -107,7 +112,7 @@ namespace MouseEngine.Lowlevel
 
         public bool match(string s, ClassDatabase dtb)
         {
-            return matcher.match(s, dtb);
+            return matcher.match(s);
         }
 
         public virtual SubstitutedPhrase toSubstituedPhrase(IEnumerable<ArgumentValue> arguments, ArgumentValue? returnValue)
@@ -142,13 +147,13 @@ namespace MouseEngine.Lowlevel
             ArgumentValue? returnType = null;
             foreach (Opcode c in codes)
             {
-                tmp.Combine(c.getBytecode(v, ref returnType));
+                tmp.Combine(c.toBytes(v, ref returnType));
             }
             return tmp;
         }
     }
 
-    internal class SubstitutedPhrase: IByteable, IPhraseSub {
+    internal class SubstitutedPhrase: IByteable, IPhraseSub, ICodeByteable {
 
 
         protected List<ArgumentValue> argValues;
@@ -173,7 +178,7 @@ namespace MouseEngine.Lowlevel
             ArgumentValue? returnValue = this.returnValue;
             foreach (Opcode a in parent.codes)
             {
-                IUnsubstitutedBytes b = a.getBytecode(argQue,ref returnValue);
+                IUnsubstitutedBytes b = a.toBytes(argQue,ref returnValue);
                 foreach (Substitution sub in b.substitutions)
                 {
                     Substitution nsub = sub;
@@ -200,15 +205,15 @@ namespace MouseEngine.Lowlevel
 
 
 
-    internal class CodeBlock: IEnumerable<IPhraseSub>
+    internal class CodeBlock: IEnumerable<ICodeByteable>, ICodeByteable
     {
         
-        List<IPhraseSub> content=new List<IPhraseSub>();
-        public void addRange(IEnumerable<IPhraseSub> num)
+        List<ICodeByteable> content=new List<ICodeByteable>();
+        public void addRange(IEnumerable<ICodeByteable> num)
         {
             content.AddRange(num);
         }
-        public void add(IPhraseSub num)
+        public void add(ICodeByteable num)
         {
             content.Add(num);
         }
@@ -225,14 +230,24 @@ namespace MouseEngine.Lowlevel
             content.Add(p.toSubstituedPhrase());
         }*/
 
-        public IEnumerator<IPhraseSub> GetEnumerator()
+        public IEnumerator<ICodeByteable> GetEnumerator()
         {
-            return ((IEnumerable<IPhraseSub>)content).GetEnumerator();
+            return ((IEnumerable<ICodeByteable>)content).GetEnumerator();
         }
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            return ((IEnumerable<IPhraseSub>)content).GetEnumerator();
+            return ((IEnumerable<ICodeByteable>)content).GetEnumerator();
+        }
+
+        public virtual IUnsubstitutedBytes toBytes()
+        {
+            IUnsubstitutedBytes tmp = new DynamicUnsubstitutedBytes();
+            foreach (ICodeByteable s in this)
+            {
+                tmp.Combine(s.toBytes());
+            }
+            return tmp;
         }
 
         /*public int getLength()
@@ -243,6 +258,80 @@ namespace MouseEngine.Lowlevel
 
             }
         }*/
+    }
+
+    class ifElseCodeBlock: CodeBlock
+    {
+        List<Range> conditionBLocks=new List<Range>();
+
+        public override IUnsubstitutedBytes toBytes()
+        {
+            IUnsubstitutedBytes tmp= base.toBytes();
+
+            List<Substitution> toRemove = new List<Substitution>();
+
+#if DEBUG
+            Console.WriteLine("object has " + tmp.substitutions.Count() + " substitutions");
+#endif
+
+            foreach (Substitution t in tmp.substitutions)
+            {
+                bool worked = true;
+                if (t.type==substitutionType.NextElse) {
+                    worked = false;
+                    foreach (Range r in conditionBLocks)
+                    {
+                        if (r.start > t.position)
+                        {
+                            tmp.WriteSlice(t.position, Writer.toBytes(r.start));
+                            worked = true;
+                            break;
+                        }
+                    }
+
+                    if (worked)
+                    {
+                        toRemove.Add(t);
+                    }
+                }
+                else if (t.type == substitutionType.BlockStart)
+                {
+                    tmp.WriteSlice(t.position, Writer.toBytes(-t.position - 2));
+                }
+
+                if (t.type == substitutionType.EndIf || !worked)
+                {
+                    tmp.WriteSlice(t.position, Writer.toBytes(tmp.Count - t.position-2));
+                    Console.WriteLine("one is ENDIF");
+                    toRemove.Add(t);
+                }
+            }
+
+            foreach (Substitution t in toRemove)
+            {
+                tmp.Complete(t);
+            }
+
+#if DEBUG
+            if (tmp.substitutions.Count() == 0)
+            {
+                Console.WriteLine("this objecet has no substitutions left!");
+            }
+#endif
+
+            return tmp;
+        }
+
+        public void addIfRange(Range r)
+        {
+            conditionBLocks.Add(r);
+            conditionBLocks.Sort();
+        }
+
+        public void addIfRange(int start, int end)
+        {
+            addIfRange(new Range(start, end));
+        }
     }
 
     class Function: Phrase, IReferable
@@ -289,13 +378,13 @@ namespace MouseEngine.Lowlevel
 
     interface IOpcode
     {
-        IUnsubstitutedBytes getBytecode(Queue<ArgumentValue> input, ref ArgumentValue? returnValue);
+        IUnsubstitutedBytes toBytes(Queue<ArgumentValue> input, ref ArgumentValue? returnValue);
         
     }
 
 
 
-    class Opcode: IOpcode
+    class Opcode: IOpcode, ICodeByteable
     {
 
         static byte[] makeaddrict(ArgumentValue[] modes)
@@ -327,14 +416,33 @@ namespace MouseEngine.Lowlevel
                 throw new NullReferenceException("existing values can't be null");
             }
         }
-
-        public IUnsubstitutedBytes getBytecode(Queue<ArgumentValue> values, ref ArgumentValue? returnValue)
+        /// <summary>
+        /// A toBytes implementation for opcodes that take no arguments, will crash for opcodes that require arguments. Can be
+        /// used in contexts where passing arguments is not realistic.
+        /// </summary>
+        /// <returns></returns>
+        public IUnsubstitutedBytes toBytes()
+        {
+            ArgumentValue? f=null;
+            return toBytes(new Queue<ArgumentValue>(), ref f);
+        }
+        /// <summary>
+        /// The normal inplementation for toBytes, any required arguments are taken from the que, and the return value,
+        /// if any, is writen to return. The method is designed to be applied repeatedly to a list of opcodes, without having to
+        /// change the variables. The function automatically crashes if you try to assign to the return value is writen to a
+        /// second time, for example.
+        /// </summary>
+        /// <param name="values">The arguments que from which to take any required arguments</param>
+        /// <param name="returnValue">The argument value that return value will be writen to.</param>
+        /// <returns></returns>
+        public IUnsubstitutedBytes toBytes(Queue<ArgumentValue> values, ref ArgumentValue? returnValue)
         {
             List<byte> bytes= new List<byte>();
             List<Substitution> subs=new List<Substitution>();
             bytes.AddRange(type.toBytes());
             List<ArgumentValue> args = new List<ArgumentValue>();
             ArgumentValue current;
+
             for (int i=0; i<existingValues.Length; i++)
             {
                 if (existingValues[i] is ArgumentValue)
@@ -356,7 +464,9 @@ namespace MouseEngine.Lowlevel
                 }
                 else
                 {
+
                     current = values.Dequeue();
+
                 }
                 args.Add(current);
             }
@@ -374,6 +484,17 @@ namespace MouseEngine.Lowlevel
             return new UnsubstitutedBytes(bytes.ToArray(), subs.ToArray());
 
 
+        }
+
+        public void setJumpTo(ArgumentValue newValue)
+        {
+            for (int i=0; i<existingValues.Length; i++)
+            {
+                if (existingValues[i] is ArgItemJumpTo)
+                {
+                    existingValues[i] = newValue;
+                }
+            }
         }
     }
 }

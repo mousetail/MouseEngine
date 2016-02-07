@@ -6,23 +6,25 @@ The Bedroom is a room:
 	Description is 99
 #	k is bla
 	To start game:
+		check the stack
 		set io system to 2
 		let n be split 0 into 3 of size 0 using 3 and rock 4
 		set the default window to n
-		if 0:
-			say "hallo"
-		if 1:
-			say "bye"
-		let f be -10
-		while f:
-			say the number f
-			say " hallo\n"
-			
-			if f+3:
-				say "O, hi\n"
-			let f be f+1
+		let number be 7
+		let q be 5
+		say "hallo "
+		check the stack
+		while number is 7:
+			say the number q+1
+			let q be q+1
+			if q is 10:
+				let number be 19
+			say " \n"
+#			poll
+			check the stack
+#		let string be " hallo\n"
 #TODO: Fix order of operations and parenthesis
-		
+#		
 #		poll
 		return n
 	Floor is "pink"

@@ -11,8 +11,9 @@ namespace MouseEngine
     enum pStatus: byte {Working, Finished, SyntaxError, RelationError}
     enum ObjType: byte { Object, Kind}
     enum ProcessingInternal: byte { GlobalFunction, LocalFunction }
+    enum BlockKind: byte { Loop=21, Condition=45} //These number are NOT actually important, I just need to avoid any being 0
 
-    class Parser
+    public class Parser
     {
         BlockParser currentBlock;
         Databases databases;
@@ -22,7 +23,7 @@ namespace MouseEngine
 
             currentBlock = new BlockParser(databases);
         }
-        public void Parse(String line)
+        public void Parse(string line)
         {
             if (line[0] != '#' && line[0] != '/' && !StringUtil.isBlank(line))
             {
@@ -94,7 +95,7 @@ namespace MouseEngine
             }
             if (!started)
             {
-                if (ObjectFirstLine.match(line, dtb))
+                if (ObjectFirstLine.match(line))
                 {
                     
                     v = ObjectFirstLine.getArgs();
@@ -103,7 +104,7 @@ namespace MouseEngine
                     tobj = ObjType.Object;
                     started = true;
                 }
-                else if (KindDefinition.match(line, dtb))
+                else if (KindDefinition.match(line))
                 {
                     v = KindDefinition.getArgs();
                     if (v != null)
@@ -142,19 +143,19 @@ namespace MouseEngine
 
                 string strippedLine = line.Substring(indentation);
 
-                if (PropertyDefinition.match(strippedLine, dtb))
+                if (PropertyDefinition.match(strippedLine))
                 {
                     v = PropertyDefinition.getArgs();
                     eobj.setAttr(v["property"], dtb.ParseAnything(v["value"]));
                 }
-                else if (tobj == ObjType.Kind && NewAttribute.match(strippedLine, dtb))
+                else if (tobj == ObjType.Kind && NewAttribute.match(strippedLine))
                 {
                     Console.WriteLine("This is an attribute");
                     v = NewAttribute.getArgs();
                     ((KindPrototype)eobj).MakeAttribute((string)v["Name"], dtb.getKindAny( (string)v["kind"], false), true);
 
                 }
-                else if (GlobalFunction.match(strippedLine, dtb))
+                else if (GlobalFunction.match(strippedLine))
                 {
                     internalParser = new CodeParser(dtbs, indentation);
                     func = ProcessingInternal.GlobalFunction;
@@ -172,22 +173,45 @@ namespace MouseEngine
         //List<byte> data;
 
         static Matcher localVariableMathcer = new MultiStringMatcher(new[] { "name", "expression" }, "let ", " be ", "");
+        static Matcher ifMatcher = new MultiStringMatcher(new[] { "condition" }, "if ", ":");
+        static Matcher whileMatcher = new MultiStringMatcher(new[] { "condition" }, "while ", ":" );
 
+
+        /// <summary>
+        /// A internal parser to redict output to if it exists.
+        /// </summary>
         CodeParser nested;
 
+        /// <summary>
+        /// The block things are written to.
+        /// </summary>
         CodeBlock block;
 
+
+        /// <summary>
+        /// The various databeses that are needed for methods
+        /// </summary>
         FunctionDatabase fdtb;
-
         ClassDatabase cdtb;
-
         StringDatabase sdtb;
 
+
+        /// <summary>
+        /// Used for recovery after conditions or loops
+        /// </summary>
+        ifElseCodeBlock internalBlock;
+        BlockKind lastBlockKind;
+
+        /// <summary>
+        /// Used to check the when the function is done or indentation has become invalid
+        /// </summary>
         int indentation;
         bool indented;
         int oldindentation;
         
-
+        /// <summary>
+        /// The local variables for this function
+        /// </summary>
         Dictionary<string, LocalVariable> locals=new Dictionary<string, LocalVariable>();
 
         int getFramePos(int varindex)
@@ -217,9 +241,15 @@ namespace MouseEngine
         }
 
 
-        
-        BlockPhrase ifStarter;
-        ArgumentValue[] ifArgValues;
+        public void setUpCondition(string condition)
+        {
+            internalBlock = new ifElseCodeBlock();
+            SubstitutedCondition d = EvalCondition(condition);
+            d.invert();
+            internalBlock.addIfRange(0, 1);
+            internalBlock.add(d);
+            nested = new CodeParser(cdtb, fdtb, sdtb, indentation, locals);
+        }
 
         public pStatus parse(string line)
         {
@@ -232,7 +262,18 @@ namespace MouseEngine
                 }
                 else if (stat == pStatus.Finished)
                 {
-                    block.add(ifStarter.toSubstituedPhrase(ifArgValues, nested.getBlock()));
+                    CodeBlock b = nested.getBlock();
+
+                    if (lastBlockKind == BlockKind.Condition)
+                    {
+                        b.add(new Opcode(opcodeType.jump, new ArgumentValue(addressMode.constint, substitutionType.EndIf, ClassDatabase.integer)));
+                    }
+                    else
+                    {
+                        b.add(new Opcode(opcodeType.jump, new ArgumentValue(addressMode.constint, substitutionType.BlockStart, ClassDatabase.integer)));
+                    }
+                    internalBlock.add(b);
+                    block.add(internalBlock);
                     nested = null;
                 }
             }
@@ -243,18 +284,23 @@ namespace MouseEngine
             }
             else if (newindentation > indentation)
             {
-                return pStatus.SyntaxError;
+                throw new Errors.IndentationError("unexpected indent");
             }
             else if (newindentation == oldindentation)
             {
-                Console.WriteLine("Finished parsing function");
+                Console.WriteLine("Finished parsing function, because indentation is "+oldindentation.ToString());
+                Console.WriteLine("\tLine: " + line);
                 DictUtil.SayDict(locals);
                 return pStatus.Finished;
+            }
+            else if (newindentation < indentation)
+            {
+                throw new Errors.IndentationError("unexpected dedent (old indentation was "+oldindentation.ToString()+" but new indentation is "+newindentation.ToString()+")");
             }
 
             string shortString = line.Substring(newindentation).Trim(StringUtil.whitespace);
 
-            if (localVariableMathcer.match(shortString, cdtb))
+            if (localVariableMathcer.match(shortString))
             {
                 Dictionary<string, string> args = localVariableMathcer.getArgs();
                 if (locals.ContainsKey(args["name"]))
@@ -263,7 +309,7 @@ namespace MouseEngine
                     LocalVariable lvar = locals[args["name"]];
                     if (lvar.kind.isParent(argva.getKind()))
                     {
-                        block.add(Phrase.assign.toSubstituedPhrase(new[] { argva, new ArgumentValue(addressMode.frameint, getFramePos( lvar.index)) },
+                        block.add(Phrase.assign.toSubstituedPhrase(new[] { argva, new ArgumentValue(addressMode.frameint, getFramePos(lvar.index)) },
                             null));
                     }
                 }
@@ -276,12 +322,54 @@ namespace MouseEngine
                     locals.Add(args["name"], new LocalVariable(locals.Count, k.getKind()));
                 }
             }
-            else {
+            else if (ifMatcher.match(shortString))
+            {
+
+                lastBlockKind = BlockKind.Condition;
+                setUpCondition(ifMatcher.getArgs()["condition"]);
+            }
+            else if (whileMatcher.match(shortString))
+            {
+                lastBlockKind = BlockKind.Loop;
+                setUpCondition(whileMatcher.getArgs()["condition"]);
+            }
+            else
+            {
 
                 EvalExpression(shortString);
             }
             return pStatus.Working;
         }
+
+        private SubstitutedCondition EvalCondition(string shortString)
+        {
+            foreach (Condition cond in fdtb.globalConditions)
+            {
+                if (cond.Match(shortString))
+                {
+                    Dictionary<string, string> MatcherArgs = cond.getMatcherArgs();
+                    Argument[] VArgs = cond.getArgs();
+                    List<ConditionArgument> tmpArguments=new List<ConditionArgument>();
+                    foreach (Argument ar in VArgs)
+                    {
+                        if (ar.type == ClassDatabase.condition)
+                        {
+#warning need to put a implementation here
+                        }
+                        else
+                        {
+                            CodeBlock conditionBlock = new CodeBlock();
+                            ArgumentValue val=EvalExpression(MatcherArgs[ar.name], conditionBlock);
+                            tmpArguments.Add(new ConditionArgument(conditionBlock, val));
+                        }
+                    }
+                    return cond.toSubstitutedCondition(new ArgumentValue(addressMode.constint,substitutionType.NextElse,ClassDatabase.integer) ,tmpArguments.ToArray());
+                }
+            }
+
+            throw new Errors.UnformatableObjectException("Can't find a condition to match "+ shortString);
+        }
+
         /// <summary>
         /// Note that this function will add phrases to the internal code block, the order iterations of this function are called
         /// matters.
@@ -289,7 +377,13 @@ namespace MouseEngine
         /// <param name="expression">the expression te be evaluated. This should be stripped of all indentation and extra
         /// spaces</param>
         /// <returns></returns>
+        /// 
         public ArgumentValue EvalExpression(string expression)
+        {
+            return EvalExpression(expression, block);
+        }
+
+        public ArgumentValue EvalExpression(string expression, CodeBlock placeToWriteTo)
         {
             if (locals.ContainsKey(expression))
             {
@@ -333,7 +427,7 @@ namespace MouseEngine
 
                         if (t.getMode() != addressMode.stack)
                         {
-                            block.add(Phrase.push.toSubstituedPhrase(new ArgumentValue[] { t }, null));
+                            placeToWriteTo.add(Phrase.push.toSubstituedPhrase(new ArgumentValue[] { t }, null));
                         }
                     }
                     else
@@ -343,22 +437,14 @@ namespace MouseEngine
                 }
                 if (matchedExpression.getReturnType() != null)
                 {
-                    block.add(matchedExpression.toSubstituedPhrase(argValues, ArgumentValue.Push));
+                    placeToWriteTo.add(matchedExpression.toSubstituedPhrase(argValues, ArgumentValue.Push));
                     return ArgumentValue.getPull(matchedExpression.getReturnType());
                 }
                 else
                 {
-                    if (matchedExpression is BlockPhrase)
-                    {
-                        nested = new CodeParser(cdtb,fdtb,sdtb,indentation,locals);
-                        ifStarter = (BlockPhrase)matchedExpression;
-                        ifArgValues = argValues.ToArray();
-                    }
-                    else
-                    {
-                        block.add(matchedExpression.toSubstituedPhrase(argValues, ArgumentValue.Zero));
-
-                    }
+                    
+                    placeToWriteTo.add(matchedExpression.toSubstituedPhrase(argValues, ArgumentValue.Zero));
+                    
                     return ArgumentValue.Zero;
                 }
             }
@@ -373,7 +459,14 @@ namespace MouseEngine
         {
             if (v is int)
             {
-                return new ArgumentValue(addressMode.constint, (int)v);
+                if (v.Equals(0))
+                {
+                    return new ArgumentValue(addressMode.zero, ClassDatabase.integer) ;
+                }
+                else
+                {
+                    return new ArgumentValue(addressMode.constint, (int)v);
+                }
             }
             else if (v is string)
             {
@@ -400,7 +493,7 @@ namespace MouseEngine
     {
     }
 
-    struct ArgItemFromArguments: IArgItem
+    struct ArgItemFromArguments: IArgItem, IConditionArgValue
     {
     }
 
@@ -430,6 +523,11 @@ namespace MouseEngine
             substitutionType = null;
             substitutionData = 0;
             kind = ClassDatabase.nothing; 
+        }
+
+        public ArgumentValue(addressMode mode, IValueKind kind):this(mode)
+        {
+            this.kind = kind;
         }
 
         public ArgumentValue(addressMode mode, int value)
