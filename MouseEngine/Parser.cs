@@ -175,6 +175,7 @@ namespace MouseEngine
         static Matcher localVariableMathcer = new MultiStringMatcher(new[] { "name", "expression" }, "let ", " be ", "");
         static Matcher ifMatcher = new MultiStringMatcher(new[] { "condition" }, "if ", ":");
         static Matcher whileMatcher = new MultiStringMatcher(new[] { "condition" }, "while ", ":" );
+        static Matcher elseMatcher = new MultiStringMatcher(new[] { "condition" }, "else ", ""));
 
 
         /// <summary>
@@ -253,6 +254,8 @@ namespace MouseEngine
 
         public pStatus parse(string line)
         {
+            //bool finishInternal = false;
+
             if (nested != null)
             {
                 pStatus stat= nested.parse(line);
@@ -275,6 +278,7 @@ namespace MouseEngine
                     internalBlock.add(b);
                     block.add(internalBlock);
                     nested = null;
+
                 }
             }
             int newindentation = StringUtil.getIndentation(line);
@@ -354,7 +358,7 @@ namespace MouseEngine
                     {
                         if (ar.type == ClassDatabase.condition)
                         {
-#warning need to put a implementation here
+                            tmpArguments.Add(new ConditionArgument(EvalCondition(MatcherArgs[ar.name]), null));
                         }
                         else
                         {
@@ -619,6 +623,11 @@ namespace MouseEngine
             
             return data;
 
+        }
+
+        internal substitutionType? getSubstitutionKind()
+        {
+            return substitutionType;
         }
     }
 

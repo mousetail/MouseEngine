@@ -32,7 +32,7 @@ namespace MouseEngine.Lowlevel
         ;
 
         void Complete(Substitution s);
-        
+        void addSubstitution(Substitution s);
     }
 
     class UnsubstitutedBytes: IUnsubstitutedBytes
@@ -132,6 +132,23 @@ namespace MouseEngine.Lowlevel
                     return;
                 }
             }
+        }
+
+        public void addSubstitution(Substitution s)
+        {
+            for (int i=0; i<Substitutions.Length; i++)
+            {
+                if (Substitutions[i].completed)
+                {
+                    Substitutions[i] = s;
+                    return;
+                }
+            }
+
+            Substitution[] copy = Substitutions;
+            Substitutions = new Substitution[Substitutions.Length + 1];
+            Substitutions.WriteSlice(0, copy);
+            Substitutions[Substitutions.Length - 1] = s;
         }
     }
 
@@ -259,6 +276,11 @@ namespace MouseEngine.Lowlevel
         public void Complete(Substitution sub)
         {
             Substitutions.Remove(sub);
+        }
+
+        public void addSubstitution(Substitution s)
+        {
+            Substitutions.Add(s);
         }
     }
 

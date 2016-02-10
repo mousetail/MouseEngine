@@ -115,13 +115,19 @@ namespace MouseEngine.Lowlevel
 
     struct ArgValueConditionFromArgument: IConditionArgValue
     {
-        bool invert;
-        ArgumentValue goTo;
+        internal bool invert;
+        internal ArgumentValue goTo;
 
         public ArgValueConditionFromArgument(bool invert)
         {
             this.invert = invert;
-            goTo = new ArgumentValue(addressMode.constint, substitutionType.conditionDestination, ClassDatabase.integer);
+            goTo = new ArgumentValue(addressMode.constint, substitutionType.conditionDestination, 2, ClassDatabase.integer);
+        }
+
+        public ArgValueConditionFromArgument(bool invert, ArgumentValue goTo)
+        {
+            this.invert = invert;
+            this.goTo = goTo;
         }
     }
 
@@ -202,6 +208,34 @@ namespace MouseEngine.Lowlevel
             },
             new Opcode(opcodeType.jeq, new ArgItemFromArguments(), new ArgItemFromArguments(), new ArgItemJumpTo()
             ));
+
+        public static Condition CondNot = new Condition(
+            new Argument[]
+            {
+                new Argument("c1",ClassDatabase.condition)
+            },
+            new MultiStringMatcher(new[] { "c1" }, "not ", ""),
+            new IConditionArgValue[] { new ArgValueConditionFromArgument(false) },
+            new ArgValueConditionFromArgument(true)
+            );
+
+        public static Condition CondAnd = new Condition(
+            new Argument[]
+            {
+                new Argument("c1",ClassDatabase.condition),
+                new Argument("c2",ClassDatabase.condition)
+            },
+            new MultiStringMatcher(new[] { "c1", "c2" }, "", " and ", ""),
+            new IConditionArgValue[]
+            {
+                new ArgValueConditionFromArgument(true),
+                new ArgValueConditionFromArgument(true)
+            }, new ArgValueConditionFromArgument(true, new ArgumentValue(addressMode.constint, substitutionType.endCondition, 1,
+                ClassDatabase.integer)),
+            new ArgValueConditionFromArgument(false)
+            
+            
+        );
     }
 
     struct ArgItemJumpTo: IConditionArgValue
@@ -241,6 +275,32 @@ namespace MouseEngine.Lowlevel
 #endif
                     index++;
                 }
+                else if (v is ArgValueConditionFromArgument)
+                {
+                    ArgValueConditionFromArgument b = (ArgValueConditionFromArgument)v;
+                    if (!(arguments[index].generator is SubstitutedCondition))
+                    {
+                        throw new Errors.OpcodeFormatError("The arguments field requested a condition, but the opcodes field didn't");
+                    }
+                    SubstitutedCondition subcond = (SubstitutedCondition)arguments[index].generator;
+
+                    if (b.goTo.getSubstitutionKind() == substitutionType.conditionDestination)
+                    {
+                        subcond.jumpTo = jumpTo;
+                    }
+                    else
+                    {
+                        subcond.jumpTo = b.goTo;
+                    }
+                    
+                    subcond.setInvert(b.invert);
+
+                    tmp.Combine(subcond.toBytes());
+
+                    index++;
+
+                   
+                }
                 else if (v is Opcode)
                 {
                     Opcode b = (Opcode)v;
@@ -262,19 +322,43 @@ namespace MouseEngine.Lowlevel
                 }
             }
 
-            List<Substitution> toRemove = new List<Substitution>(4);
+            List<Substitution> toRemove = new List<Substitution>();
+            List<Substitution> toAdd = new List<Substitution>();
 
             foreach (Substitution s in tmp.substitutions)
             {
                 if (s.type == substitutionType.endCondition)
                 {
-                    tmp.WriteSlice(s.position, Writer.toBytes(tmp.Count - s.position));
-                    toRemove.Add(s);
+                    if (s.data == 0)
+                    {
+                        tmp.WriteSlice(s.position, Writer.toBytes(tmp.Count - s.position - 2));
+                        toRemove.Add(s);
+                    }
+                    else
+                    {
+                        Substitution d = s;
+                        d.data -= 1;
+                        toAdd.Add(d);
+                        toRemove.Add(s);
+                    }
                 }
             }
             foreach (Substitution s in toRemove)
             {
                 tmp.Complete(s);
+            }
+
+#if DEBUG
+            foreach (Substitution s in tmp.substitutions)
+            {
+                Console.Write(s);
+                Console.WriteLine(s.type);
+            }
+#endif
+
+            foreach (Substitution s in toAdd)
+            {
+                tmp.addSubstitution(s);
             }
             return tmp;
         }
@@ -282,6 +366,11 @@ namespace MouseEngine.Lowlevel
         internal void invert()
         {
             inveted ^= true;
+        }
+
+        internal void setInvert(bool invert)
+        {
+            inveted = invert;
         }
     }
     

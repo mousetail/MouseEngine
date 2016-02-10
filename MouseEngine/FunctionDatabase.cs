@@ -34,7 +34,10 @@ namespace MouseEngine.Lowlevel
             Phrase.MathDivide, Phrase.DebugCheckStack,  Phrase.add};
             globalConditions = new[]
             {
-                Condition.CondEquals
+                Condition.CondNot,
+                
+                Condition.CondEquals,
+                Condition.CondAnd
             };
         }
 
@@ -278,6 +281,10 @@ namespace MouseEngine.Lowlevel
             {
                 bool worked = true;
                 if (t.type==substitutionType.NextElse) {
+
+#if DEBUG
+                    Console.WriteLine("substituting next else at "+t.position.ToString());
+#endif
                     worked = false;
                     foreach (Range r in conditionBLocks)
                     {
@@ -486,14 +493,25 @@ namespace MouseEngine.Lowlevel
 
         }
 
+        int[] jumpValues;
+
         public void setJumpTo(ArgumentValue newValue)
         {
-            for (int i=0; i<existingValues.Length; i++)
+            if (jumpValues == null)
             {
-                if (existingValues[i] is ArgItemJumpTo)
+                List<int> jumpValues = new List<int>();
+                for (int i=0; i<existingValues.Length; i++)
                 {
-                    existingValues[i] = newValue;
+                    if (existingValues[i] is ArgItemJumpTo)
+                    {
+                        jumpValues.Add(i);
+                    }
                 }
+                this.jumpValues = jumpValues.ToArray();
+            }
+            foreach (int i in jumpValues)
+            {
+                existingValues[i] = newValue;
             }
         }
     }

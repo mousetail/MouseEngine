@@ -10,21 +10,22 @@ The Bedroom is a room:
 		set io system to 2
 		let n be split 0 into 3 of size 0 using 3 and rock 4
 		set the default window to n
-		let number be 7
-		let q be 5
-		say "hallo "
-		check the stack
-		while number is 7:
-			say the number q+1
-			let q be q+1
-			if q is 10:
-				let number be 19
-			say " \n"
-#			poll
-			check the stack
-#		let string be " hallo\n"
-#TODO: Fix order of operations and parenthesis
-#		
-#		poll
+		if not ((1 is 1) and (2 is 2)):
+			say "no7\n"
+		if not ((1 is 2) and (2 is 2)):
+			say "yolo 8\n"
+		if not ((199 is 199) and (234 is -1)):
+			say "yolo 9\n"
+		if (1 is 1) and (1 is 2):
+			say "no2\n"
+		if (0 is 1) and (1 is 1):
+			say "no3\n"
+		if (1 is 1) and (2 is 2):
+			say "yolo 4\n"
+		if (1 is 5) and (5 is 1):
+			say "no5\n"
+		if not ((1 is 1) and (2 is 2)):
+			say "no6\n"
+		
 		return n
 	Floor is "pink"

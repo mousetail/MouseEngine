@@ -157,11 +157,7 @@ namespace MouseEngine
             {
                 return true;
             }
-
-            if (str.StartsWith("(") && str.EndsWith(")"))
-            {
-                str = str.Substring(1, str.Length - 2);
-            }
+            
 
             else if (!str.StartsWith(segments[0],StringComparison.CurrentCultureIgnoreCase))
             {
@@ -172,25 +168,53 @@ namespace MouseEngine
             //They are enclosed in parenthesis
 
             List<Range> protectedParts=new List<Range>();
+
+            int minNesting = 6;
             int pnesting = 0;
             int pstartpos = 0;
-            for (int i=0; i<str.Length; i++)
+
+            while (minNesting != 0)
             {
-                if (str[i] == '(')
+                pstartpos = 0;
+                pnesting = 0;
+                minNesting = 6;
+                protectedParts.Clear();
+
+                for (int i = 0; i < str.Length; i++)
                 {
-                    pnesting += 1;
-                    if (pnesting == 1) //It was 0 before
+                    if (str[i] == '(')
                     {
-                        pstartpos = i;
+                        pnesting += 1;
+                        if (pnesting == 1) //It was 0 before
+                        {
+                            pstartpos = i;
+                        }
+                    }
+                    else if (str[i] == ')')
+                    {
+                        pnesting -= 1;
+                        if (pnesting == 0)
+                        {
+                            protectedParts.Add(new Range(pstartpos, i));
+                        }
+                        if (pnesting < minNesting && i != str.Length - 1)
+                        {
+                            minNesting = pnesting;
+                        }
+                    }
+                    else if (i == 0)
+                    {
+                        minNesting = 0;
                     }
                 }
-                else if (str[i]==')')
+
+                if (minNesting != 0 && str[str.Length-1]==')')
                 {
-                    pnesting -= 1;
-                    if (pnesting == 0)
-                    {
-                        protectedParts.Add(new Range(pstartpos, i));
-                    }
+                    str = str.Substring(1, str.Length - 2);
+                }
+                else if (minNesting!=0)
+                {
+                    throw new Errors.SyntaxError("You probably missed a set of parenthsis in the string " + str);
                 }
             }
 
@@ -199,8 +223,8 @@ namespace MouseEngine
             pstartpos = 0;
             for (int i=0; i<stringparts.Length-1; i++)
             {
-                stringparts[i] = str.Substring(pstartpos, protectedParts[i].start);
-                pstartpos = protectedParts[i].end;
+                stringparts[i] = str.Substring(pstartpos, protectedParts[i].start-pstartpos);
+                pstartpos = protectedParts[i].end+1;
             }
             stringparts[stringparts.Length-1] = str.Substring(pstartpos);
 //Works till here
@@ -269,7 +293,7 @@ namespace MouseEngine
                 }
                 if (i < protectedParts.Count)
                 {
-                    strlength += stringparts[i].Length + protectedParts[i].length;
+                    strlength += stringparts[i].Length + protectedParts[i].length+1;
                 }
             }
 
