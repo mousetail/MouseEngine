@@ -246,10 +246,18 @@ namespace MouseEngine.Lowlevel
         public virtual IUnsubstitutedBytes toBytes()
         {
             IUnsubstitutedBytes tmp = new DynamicUnsubstitutedBytes();
+            List<int> phrasePositions = new List<int>();
+            phrasePositions.Add(0);
             foreach (ICodeByteable s in this)
             {
                 tmp.Combine(s.toBytes());
+                phrasePositions.Add(tmp.Count);
             }
+            if (this is ifElseCodeBlock)
+            {
+                ((ifElseCodeBlock)this).phrasePositions = phrasePositions.ToArray();
+            }
+
             return tmp;
         }
 
@@ -261,10 +269,21 @@ namespace MouseEngine.Lowlevel
 
             }
         }*/
+
+        public int Count
+        {
+            get
+            {
+                return content.Count;
+            }
+        }
     }
+    
 
     class ifElseCodeBlock: CodeBlock
     {
+        public int[] phrasePositions;
+
         List<Range> conditionBLocks=new List<Range>();
 
         public override IUnsubstitutedBytes toBytes()
@@ -273,26 +292,19 @@ namespace MouseEngine.Lowlevel
 
             List<Substitution> toRemove = new List<Substitution>();
 
-#if DEBUG
-            Console.WriteLine("object has " + tmp.substitutions.Count() + " substitutions");
-#endif
+
 
             foreach (Substitution t in tmp.substitutions)
             {
                 bool worked = true;
                 if (t.type==substitutionType.NextElse) {
-
-#if DEBUG
-                    Console.WriteLine("substituting next else at "+t.position.ToString());
-#endif
                     worked = false;
                     foreach (Range r in conditionBLocks)
                     {
-                        if (r.start > t.position)
+                        if (phrasePositions[r.start] > t.position)
                         {
-                            tmp.WriteSlice(t.position, Writer.toBytes(r.start));
                             worked = true;
-                            break;
+                            tmp.WriteSlice(t.position, Writer.toBytes(phrasePositions[r.start] - t.position - 2));
                         }
                     }
 
@@ -309,7 +321,6 @@ namespace MouseEngine.Lowlevel
                 if (t.type == substitutionType.EndIf || !worked)
                 {
                     tmp.WriteSlice(t.position, Writer.toBytes(tmp.Count - t.position-2));
-                    Console.WriteLine("one is ENDIF");
                     toRemove.Add(t);
                 }
             }
@@ -319,12 +330,7 @@ namespace MouseEngine.Lowlevel
                 tmp.Complete(t);
             }
 
-#if DEBUG
-            if (tmp.substitutions.Count() == 0)
-            {
-                Console.WriteLine("this objecet has no substitutions left!");
-            }
-#endif
+
 
             return tmp;
         }

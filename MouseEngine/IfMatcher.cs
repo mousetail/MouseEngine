@@ -348,13 +348,6 @@ namespace MouseEngine.Lowlevel
                 tmp.Complete(s);
             }
 
-#if DEBUG
-            foreach (Substitution s in tmp.substitutions)
-            {
-                Console.Write(s);
-                Console.WriteLine(s.type);
-            }
-#endif
 
             foreach (Substitution s in toAdd)
             {

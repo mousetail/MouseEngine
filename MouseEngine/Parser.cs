@@ -175,7 +175,7 @@ namespace MouseEngine
         static Matcher localVariableMathcer = new MultiStringMatcher(new[] { "name", "expression" }, "let ", " be ", "");
         static Matcher ifMatcher = new MultiStringMatcher(new[] { "condition" }, "if ", ":");
         static Matcher whileMatcher = new MultiStringMatcher(new[] { "condition" }, "while ", ":" );
-        static Matcher elseMatcher = new MultiStringMatcher(new[] { "condition" }, "else ", ""));
+        static Matcher elseMatcher = new MultiStringMatcher(new[] { "condition" }, "else", "");
 
 
         /// <summary>
@@ -244,17 +244,27 @@ namespace MouseEngine
 
         public void setUpCondition(string condition)
         {
-            internalBlock = new ifElseCodeBlock();
+            setUpCondition();
             SubstitutedCondition d = EvalCondition(condition);
             d.invert();
-            internalBlock.addIfRange(0, 1);
             internalBlock.add(d);
+        }
+
+        public void setUpCondition()
+        {
+            if (internalBlock == null)
+            {
+                internalBlock = new ifElseCodeBlock();
+            }
             nested = new CodeParser(cdtb, fdtb, sdtb, indentation, locals);
+            internalBlock.addIfRange(internalBlock.Count, internalBlock.Count);
+
         }
 
         public pStatus parse(string line)
         {
-            //bool finishInternal = false;
+            bool finishInternal = false;
+            bool doEsle = false;
 
             if (nested != null)
             {
@@ -265,21 +275,13 @@ namespace MouseEngine
                 }
                 else if (stat == pStatus.Finished)
                 {
-                    CodeBlock b = nested.getBlock();
-
-                    if (lastBlockKind == BlockKind.Condition)
-                    {
-                        b.add(new Opcode(opcodeType.jump, new ArgumentValue(addressMode.constint, substitutionType.EndIf, ClassDatabase.integer)));
-                    }
-                    else
-                    {
-                        b.add(new Opcode(opcodeType.jump, new ArgumentValue(addressMode.constint, substitutionType.BlockStart, ClassDatabase.integer)));
-                    }
-                    internalBlock.add(b);
-                    block.add(internalBlock);
-                    nested = null;
+                    finishInternal = true;
 
                 }
+            }
+            else
+            {
+                //short f=0;
             }
             int newindentation = StringUtil.getIndentation(line);
             if (!indented && newindentation > oldindentation)
@@ -303,6 +305,45 @@ namespace MouseEngine
             }
 
             string shortString = line.Substring(newindentation).Trim(StringUtil.whitespace);
+
+            if (finishInternal)
+            {
+                CodeBlock b = nested.getBlock();
+                doEsle = elseMatcher.match(shortString);
+                if (doEsle)
+                {
+                    shortString = elseMatcher.getArgs()["condition"];
+                    if (shortString.StartsWith(" "))
+                    {
+                        shortString = shortString.Substring(1);
+                    }
+                }
+
+                if (lastBlockKind == BlockKind.Condition)
+                {
+                    if (doEsle)
+                    {
+                        b.add(new Opcode(opcodeType.jump, new ArgumentValue(addressMode.constint, substitutionType.EndIf, ClassDatabase.integer)));
+                    }
+                }
+                else
+                {
+                    b.add(new Opcode(opcodeType.jump, new ArgumentValue(addressMode.constint, substitutionType.BlockStart, ClassDatabase.integer)));
+                }
+                internalBlock.add(b);
+                nested = null;
+
+                if (!doEsle)
+                {
+                    block.add(internalBlock);
+                    internalBlock = null;
+                }
+                else
+                {
+
+                }
+
+            }
 
             if (localVariableMathcer.match(shortString))
             {
@@ -336,6 +377,14 @@ namespace MouseEngine
             {
                 lastBlockKind = BlockKind.Loop;
                 setUpCondition(whileMatcher.getArgs()["condition"]);
+            }
+            else if (doEsle && shortString == ":")
+            {
+                setUpCondition();
+            }
+            else if (doEsle)
+            {
+                throw new Errors.SyntaxError("else without a valid condition");
             }
             else
             {

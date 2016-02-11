@@ -24,6 +24,13 @@ namespace MouseEngine
 
         public StringItem getStr(string s)
         {
+            foreach (StringItem st in strs)
+            {
+                if (st.String.Equals(s))
+                {
+                    return st;
+                }
+            }
             StringItem f = new StringItem(s, Databases.ids++);
             strs.Add(f);
             return f;
