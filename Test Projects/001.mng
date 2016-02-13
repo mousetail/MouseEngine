@@ -8,28 +8,7 @@ The Bedroom is a room:
 	To start game:
 		check the stack
 		set io system to 2
-		let n be split 0 into 3 of size 0 using 3 and rock 4
+		let n be split 0 into 2 + 1 of size 0 using 3 and rock 4
 		set the default window to n
-		if (1 is 2):
-			say "no7\n"
-		else if (1 is 2):
-			say "yes else"
-		else:
-			say "yolo 8\n"
-		if not ((1 is 2) and (2 is 2)):
-			say "yolo 8\n"
-		if not ((199 is 199) and (234 is -1)):
-			say "yolo 9\n"
-		if (1 is 1) and (1 is 2):
-			say "no7\n"
-		if (0 is 1) and (1 is 1):
-			say "no7\n"
-		if (1 is 1) and (2 is 2):
-			say "yolo 4\n"
-		if (1 is 5) and (5 is 1):
-			say "no7\n"
-		if not ((1 is 1) and (2 is 2)):
-			say "no7\n"
-		
 		return n
 	Floor is "pink"

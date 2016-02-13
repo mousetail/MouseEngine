@@ -28,10 +28,10 @@ namespace MouseEngine.Lowlevel
 
         public FunctionDatabase()
         {
-            globalFunctions = new List<Phrase>() { Phrase.returnf,Phrase.makeWindow, Phrase.setIOSystem,
+            globalFunctions = new List<Phrase>() { Phrase.returnf,  Phrase.add,Phrase.makeWindow, Phrase.setIOSystem,
                 Phrase.IOprintNum,
             Phrase.setIOWindow, Phrase.GiveError, Phrase.GlkPoll, Phrase.IOprint,
-            Phrase.MathDivide, Phrase.DebugCheckStack,  Phrase.add};
+            Phrase.MathDivide, Phrase.DebugCheckStack};
             globalConditions = new[]
             {
                 Condition.CondNot,

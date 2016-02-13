@@ -389,38 +389,52 @@ namespace MouseEngine
             else
             {
 
-                EvalExpression(shortString);
+                EvalExpression(shortString, false);
             }
             return pStatus.Working;
         }
 
         private SubstitutedCondition EvalCondition(string shortString)
         {
+            Exception lastEx=null;
+
             foreach (Condition cond in fdtb.globalConditions)
             {
                 if (cond.Match(shortString))
                 {
-                    Dictionary<string, string> MatcherArgs = cond.getMatcherArgs();
-                    Argument[] VArgs = cond.getArgs();
-                    List<ConditionArgument> tmpArguments=new List<ConditionArgument>();
-                    foreach (Argument ar in VArgs)
-                    {
-                        if (ar.type == ClassDatabase.condition)
+                    try {
+                        Dictionary<string, string> MatcherArgs = cond.getMatcherArgs();
+                        Argument[] VArgs = cond.getArgs();
+                        List<ConditionArgument> tmpArguments = new List<ConditionArgument>();
+                        foreach (Argument ar in VArgs)
                         {
-                            tmpArguments.Add(new ConditionArgument(EvalCondition(MatcherArgs[ar.name]), null));
+                            if (ar.type == ClassDatabase.condition)
+                            {
+                                tmpArguments.Add(new ConditionArgument(EvalCondition(MatcherArgs[ar.name]), null));
+                            }
+                            else
+                            {
+                                CodeBlock conditionBlock = new CodeBlock();
+                                ArgumentValue val = EvalExpression(MatcherArgs[ar.name], conditionBlock);
+                                tmpArguments.Add(new ConditionArgument(conditionBlock, val));
+                            }
                         }
-                        else
-                        {
-                            CodeBlock conditionBlock = new CodeBlock();
-                            ArgumentValue val=EvalExpression(MatcherArgs[ar.name], conditionBlock);
-                            tmpArguments.Add(new ConditionArgument(conditionBlock, val));
-                        }
+                        return cond.toSubstitutedCondition(new ArgumentValue(addressMode.constint, substitutionType.NextElse, ClassDatabase.integer), tmpArguments.ToArray());
                     }
-                    return cond.toSubstitutedCondition(new ArgumentValue(addressMode.constint,substitutionType.NextElse,ClassDatabase.integer) ,tmpArguments.ToArray());
+                    catch (Errors.ParsingException x)
+                    {
+                        lastEx = x;
+                    }
                 }
             }
-
-            throw new Errors.UnformatableObjectException("Can't find a condition to match "+ shortString);
+            if (lastEx == null)
+            {
+                throw new Errors.UnformatableObjectException("Can't find a condition to match " + shortString);
+            }
+            else
+            {
+                throw lastEx;
+            }
         }
 
         /// <summary>
@@ -433,10 +447,20 @@ namespace MouseEngine
         /// 
         public ArgumentValue EvalExpression(string expression)
         {
-            return EvalExpression(expression, block);
+            return EvalExpression(expression, block, true);
         }
 
         public ArgumentValue EvalExpression(string expression, CodeBlock placeToWriteTo)
+        {
+            return EvalExpression(expression, placeToWriteTo, true);
+        }
+
+        public ArgumentValue EvalExpression(string expression, bool useOutput)
+        {
+            return EvalExpression(expression, block, useOutput);
+        }
+
+        public ArgumentValue EvalExpression(string expression, CodeBlock placeToWriteTo, bool useOutput)
         {
             if (locals.ContainsKey(expression))
             {
@@ -449,58 +473,76 @@ namespace MouseEngine
             }
             else
             {
-                Phrase matchedExpression = null;
+                ArgumentValue? returnValue=null;
+                Exception lastEx = null;
                 foreach (Phrase f in fdtb)
                 {
                     if (f.match(expression, cdtb))
                     {
-                        matchedExpression = f;
-
-                        break;
-                    }
-                }
-                if (matchedExpression == null)
-                {
-                    throw new Errors.SyntaxError("No code way found to match \"" + expression+"\"");
-                }
-                Dictionary<string, string> args = matchedExpression.lastMatchArgs();
-                Stack<ArgumentValue> argValues = new Stack<ArgumentValue>();
-                foreach (Argument v in matchedExpression.arguments.Reverse())
-                {
-                    ArgumentValue t = EvalExpression(args[v.name]);
-
-                    if (!v.type.isParent(t.getKind()))
-                    {
-                        throw new Errors.TypeMismatchException("type " + v.type.ToString() + " is incompatable with " + t.getKind().ToString());
-                    }
-
-                    if (v.isStackArgument)
-                    {
-                        
-
-                        if (t.getMode() != addressMode.stack)
+                        try
                         {
-                            placeToWriteTo.add(Phrase.push.toSubstituedPhrase(new ArgumentValue[] { t }, null));
+                            returnValue=evalPhrase(f, placeToWriteTo, useOutput);
+                            break;
                         }
+                        catch (Errors.ParsingException ex)
+                        {
+                            lastEx = ex;
+                            returnValue = null;
+                        }
+                    }
+                }
+                if (returnValue == null)
+                {
+                    if (lastEx == null)
+                    {
+                        throw new Errors.SyntaxError("No code way found to match \"" + expression + "\"");
                     }
                     else
                     {
-                        argValues.Push(t);
+                        throw lastEx;
                     }
                 }
-                if (matchedExpression.getReturnType() != null)
+                return (ArgumentValue)returnValue;
+            }
+        }
+
+        public ArgumentValue evalPhrase(Phrase matchedExpression, CodeBlock placeToWriteTo, bool useOutput)
+        {
+            ArgumentValue returnValue;
+            if (matchedExpression.getReturnType()== null || !useOutput){
+                returnValue = ArgumentValue.Zero;
+            }
+            else
+            {
+                returnValue = ArgumentValue.getPull(matchedExpression.getReturnType());
+            }
+            Dictionary<string, string> args = matchedExpression.lastMatchArgs();
+            Stack<ArgumentValue> argValues = new Stack<ArgumentValue>();
+            foreach (Argument v in matchedExpression.arguments.Reverse())
+            {
+                ArgumentValue t = EvalExpression(args[v.name]);
+
+                if (!v.type.isParent(t.getKind()))
                 {
-                    placeToWriteTo.add(matchedExpression.toSubstituedPhrase(argValues, ArgumentValue.Push));
-                    return ArgumentValue.getPull(matchedExpression.getReturnType());
+                    throw new Errors.TypeMismatchException("type " + v.type.ToString() + " is incompatable with " + t.getKind().ToString());
+                }
+
+                if (v.isStackArgument)
+                {
+
+
+                    if (t.getMode() != addressMode.stack)
+                    {
+                        placeToWriteTo.add(Phrase.push.toSubstituedPhrase(new ArgumentValue[] { t }, null));
+                    }
                 }
                 else
                 {
-                    
-                    placeToWriteTo.add(matchedExpression.toSubstituedPhrase(argValues, ArgumentValue.Zero));
-                    
-                    return ArgumentValue.Zero;
+                    argValues.Push(t);
                 }
             }
+            placeToWriteTo.add(matchedExpression.toSubstituedPhrase(argValues, returnValue));
+            return returnValue;
         }
 
         public CodeBlock getBlock()
