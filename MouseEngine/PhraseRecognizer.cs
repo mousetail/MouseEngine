@@ -91,7 +91,11 @@ namespace MouseEngine
     }
 
     
-
+    /// <summary>
+    /// A struct to represent a section in a string or array.
+    /// It includes both end points. For a zero length array,
+    /// end should be one less than start.
+    /// </summary>
     public struct Range: IComparable<Range>
     {
         public int start;
@@ -101,7 +105,7 @@ namespace MouseEngine
             this.start = start;
             this.end = end;
 #if DEBUG
-            if (start> end)
+            if (length<0)
             {
                 throw new IndexOutOfRangeException("start can't be more than end");
             }
@@ -128,8 +132,13 @@ namespace MouseEngine
         {
             get
             {
-                return end - start;
+                return end - start + 1;
             }
+        }
+
+        public override string ToString()
+        {
+            return "Range (" + start.ToString() + "-" + end.ToString() + ")";
         }
 
     }
@@ -148,85 +157,38 @@ namespace MouseEngine
             {
                 throw new Errors.OpcodeFormatError("inequal ar names and argument fields");
             }
+            System.Globalization.CultureInfo f = new System.Globalization.CultureInfo("en-us");
+            System.Threading.Thread.CurrentThread.CurrentCulture = f;
             
         }
 
         public override bool match(string str)
         {
+            if (str.StartsWith("(") && str.EndsWith(")"))
+            {
+                str = str.Substring(1, str.Length - 2);
+            }
+
             if (segments.Length == 0)
             {
                 return true;
             }
+
+           
             
 
             else if (!str.StartsWith(segments[0],StringComparison.CurrentCultureIgnoreCase))
             {
                 return false;
             }
-            
+
             //This code finds the parts inside parethesis that won't be scanned, because
             //They are enclosed in parenthesis
 
-            List<Range> protectedParts=new List<Range>();
-
-            int minNesting = 6;
-            int pnesting = 0;
-            int pstartpos = 0;
-
-            while (minNesting != 0)
-            {
-                pstartpos = 0;
-                pnesting = 0;
-                minNesting = 6;
-                protectedParts.Clear();
-
-                for (int i = 0; i < str.Length; i++)
-                {
-                    if (str[i] == '(')
-                    {
-                        pnesting += 1;
-                        if (pnesting == 1) //It was 0 before
-                        {
-                            pstartpos = i;
-                        }
-                    }
-                    else if (str[i] == ')')
-                    {
-                        pnesting -= 1;
-                        if (pnesting == 0)
-                        {
-                            protectedParts.Add(new Range(pstartpos, i));
-                        }
-                        if (pnesting < minNesting && i != str.Length - 1)
-                        {
-                            minNesting = pnesting;
-                        }
-                    }
-                    else if (i == 0)
-                    {
-                        minNesting = 0;
-                    }
-                }
-
-                if (minNesting != 0 && str[str.Length-1]==')')
-                {
-                    str = str.Substring(1, str.Length - 2);
-                }
-                else if (minNesting!=0)
-                {
-                    throw new Errors.SyntaxError("You probably missed a set of parenthsis in the string " + str);
-                }
-            }
+            Range[] protectedParts = ArrayUtil.getRangeInverse(StringUtil.getProtectedParts(str).ToArray(),str.Length, false).ToArray();
 
 
-            string[] stringparts = new string[protectedParts.Count + 1];
-            pstartpos = 0;
-            for (int i=0; i<stringparts.Length-1; i++)
-            {
-                stringparts[i] = str.Substring(pstartpos, protectedParts[i].start-pstartpos);
-                pstartpos = protectedParts[i].end+1;
-            }
-            stringparts[stringparts.Length-1] = str.Substring(pstartpos);
+            string[] stringparts = StringUtil.getInsideStrings(protectedParts, str);
 //Works till here
             List<Range> argumentPos = new List<Range>();
 
@@ -262,7 +224,7 @@ namespace MouseEngine
 
                         }
                         else {
-                            argumentPos.Add(new Range(lastpos, strlength+firstMatch));
+                            argumentPos.Add(new Range(lastpos, strlength+firstMatch-1));
                         }
 
                         lastpos = strlength + firstMatch + segments[currentIndex].Length;
@@ -291,9 +253,9 @@ namespace MouseEngine
                     }
 
                 }
-                if (i < protectedParts.Count)
+                if (i+1 < protectedParts.Length)
                 {
-                    strlength += stringparts[i].Length + protectedParts[i].length+1;
+                    strlength = protectedParts[i+1].start;
                 }
             }
 
@@ -304,12 +266,7 @@ namespace MouseEngine
                 return false;
             }
 
-            args = new string[argumentPos.Count];
-
-            for (int i=0; i < argumentPos.Count; i++)
-            {
-                args[i] = str.Substring(argumentPos[i].start, argumentPos[i].end - argumentPos[i].start);
-            }
+            args = StringUtil.getInsideStrings(argumentPos.ToArray(), str).ToArray();
             
             return true;
             

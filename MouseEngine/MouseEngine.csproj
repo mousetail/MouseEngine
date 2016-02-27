@@ -49,6 +49,7 @@
     <Compile Include="BasicPhrases.cs" />
     <Compile Include="ClassDatabase.cs" />
     <Compile Include="Errors.cs" />
+    <Compile Include="Errors\ItemMatchException.cs" />
     <Compile Include="FunctionDatabase.cs" />
     <Compile Include="IfMatcher.cs" />
     <Compile Include="Opcodes.cs" />

@@ -101,4 +101,18 @@ namespace MouseEngine.Errors
 
         }
     }
+
+    class InvalidIncreaseIndent: IndentationError
+    {
+        public InvalidIncreaseIndent(string s): base(s)
+        {
+
+        }
+    }
+    class InvalidDecreaseIndent: IndentationError
+    {
+        public InvalidDecreaseIndent(string s): base(s){
+
+        }
+    }
 }

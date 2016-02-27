@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections;
 using System.Linq;
+using System.Text;
 
 namespace MouseEngine
 {
@@ -18,7 +19,7 @@ namespace MouseEngine
         }
     }
 
-    static class ArrayUtil
+    static public class ArrayUtil
     {
         public static void WriteSlice<T>(this T[] arr, int start, int length, T[] replacement)
         {
@@ -57,6 +58,39 @@ namespace MouseEngine
                 tmp.WriteSlice(i * 4, 4, Lowlevel.Writer.toBytes(arr[i]));
             }
             return tmp;
+        }
+
+        public static List<Range> getRangeInverse(this Range[] input, int lenght)
+        {
+            return getRangeInverse(input, lenght, true);
+        }
+
+        public static List<Range> getRangeInverse(this Range[] input, int lenght, bool removeUnused)
+        {
+            int start = 0;
+            List<Range> output=new List<Range>();
+            foreach (Range r in input)
+            {
+                if (!removeUnused || start <= r.start)
+                    output.Add(new Range(start, r.start - 1));
+                start = r.end+1;
+            }
+            if (start <= lenght || !removeUnused)
+            {
+                output.Add(new Range(start, lenght-1));
+            }
+            return output;
+        }
+
+        public static string toAdvancedString<T>(this T[] arr)
+        {
+            StringBuilder b = new StringBuilder();
+            foreach (T k in arr)
+            {
+                b.Append(k.ToString());
+                b.Append(", ");
+            }
+            return b.ToString();
         }
 
     }
@@ -110,7 +144,7 @@ namespace MouseEngine
         }
     }
 
-    static class StringUtil
+    static public class StringUtil
     {
         public static char[] whitespace = new char[] { ' ', '\t' };
 
@@ -150,6 +184,74 @@ namespace MouseEngine
             }
             return true;
         }
+        public static List<Range> getProtectedParts(string str)
+        {
+            List<Range> protectedParts = new List<Range>();
+
+            int minNesting = 6;
+            int pnesting = 0;
+            int pstartpos = 0;
+
+            pstartpos = 0;
+            pnesting = 0;
+            minNesting = 6;
+
+            for (int i = 0; i < str.Length; i++)
+            {
+                if (str[i] == '(')
+                {
+                    pnesting += 1;
+                    if (pnesting == 1) //It was 0 before
+                    {
+                        pstartpos = i;
+                    }
+                }
+                else if (str[i] == ')')
+                {
+                    pnesting -= 1;
+                    if (pnesting == 0)
+                    {
+                        protectedParts.Add(new Range(pstartpos, i));
+                    }
+                    if (pnesting < minNesting && i != str.Length - 1)
+                    {
+                        minNesting = pnesting;
+                    }
+                }
+                else if (i == 0)
+                {
+                    minNesting = 0;
+                }
+            }
+            if (pnesting != 0)
+            {
+                throw new Errors.SyntaxError("You probably missed a set of parenthsis in the string \"" + str + "\"");
+            }
+#if false
+            if (str.Length != 0 && minNesting != 0 && str[str.Length - 1] == ')')
+            {
+                str = str.Substring(1, str.Length - 2);
+            }
+            else 
+
+            if (str.Length > 0 && protectedParts.Count==0)
+            {
+                throw NotImplementedException("Some problem");
+            }
+#endif
+            return protectedParts;
+        }
+
+        public static string[] getInsideStrings(Range[] protectedParts, string str)
+        {
+            string[] stringparts = new string[protectedParts.Length];
+            for (int i = 0; i < protectedParts.Length; i++)
+            {
+                stringparts[i] = str.Substring(protectedParts[i].start, protectedParts[i].length);
+            }
+            return stringparts;
+        }
+        
     }
     static class NumUtil
     {

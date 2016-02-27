@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using MouseEngine;
+using System.Linq;
 
 namespace MouseEngineTest
 {
@@ -120,6 +121,55 @@ namespace MouseEngineTest
             { {"1","1" }, {"2","(2^3)" } }.toAdvancedString(),
             m.getArgs().toAdvancedString());
         }
+
+        [TestMethod]
+        [TestCategory("Util")]
+        public void testGetSections()
+        {
+            List<Range> output= StringUtil.getProtectedParts("er (was) eens");
+            Assert.AreEqual(1, output.Count, "To many items");
+            Assert.AreEqual(3, output[0].start, "start is wrong");
+            Assert.AreEqual(7, output[0].end, "end is wrong");
+        }
+        [TestMethod]
+        [TestCategory("Util")]
+        public void testGetInverse()
+        {
+            Range[] output = ArrayUtil.getRangeInverse(new []
+            {
+                new Range(2, 3),
+                new Range(6, 10)
+            },15).ToArray();
+            Assert.AreEqual(3, output.Length, "length is wrong");
+            Assert.AreEqual(new[]
+            {
+                new Range(0,1),
+                new Range(4,5),
+                new Range(11,14)
+            }.toAdvancedString(),
+            output.toAdvancedString());
+
+        }
+
+        [TestMethod]
+        [TestCategory("Util")]
+        public void testGetInsideStrings()
+        {
+            string testString = "01234567890123456789";
+            string[] output = StringUtil.getInsideStrings(
+                new Range[]
+                {
+                    new Range(2,8)
+                },
+                testString
+                );
+            Assert.AreEqual(output.Length, 1);
+            Assert.AreEqual(
+                new[] { "2345678" }.toAdvancedString(),
+                output.toAdvancedString()
+                );
+        }
+
 
     }
 }

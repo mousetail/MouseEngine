@@ -23,11 +23,20 @@ namespace MouseEngine.Lowlevel
     {
         List<Phrase> globalFunctions;
         public Condition[] globalConditions;
-
+#if DEBUG
+        static int instances = 0;
+#endif
         //public static Phrase 
 
         public FunctionDatabase()
         {
+#if DEBUG
+            if (instances > 0)
+            {
+                throw new Errors.OpcodeFormatError("trying to make a new instance of functiondatabase. If done on purpose, change FDB");
+            }
+            instances += 1;
+#endif
             globalFunctions = new List<Phrase>() { Phrase.returnf,  Phrase.add,Phrase.makeWindow, Phrase.setIOSystem,
                 Phrase.IOprintNum,
             Phrase.setIOWindow, Phrase.GiveError, Phrase.GlkPoll, Phrase.IOprint,
@@ -51,9 +60,14 @@ namespace MouseEngine.Lowlevel
             return ((IEnumerable<Phrase>)globalFunctions).GetEnumerator();
         }
 
-        public void AddGlobalFunction(CodeBlock b, string name, int numargs)
+        public Function AddGlobalFunction(Prototype parent, Matcher m, IEnumerable<Argument> args, IValueKind returnValue)
         {
-            globalFunctions.Add(new Function(b, name, numargs, Databases.ids++));
+            Function tmp = new Function(parent, null, m, returnValue, args, Databases.ids++);
+            globalFunctions.Add(tmp);
+#if DEBUG
+            Console.WriteLine(tmp);
+#endif
+            return tmp;
         }
     }
     internal struct Argument
@@ -90,6 +104,7 @@ namespace MouseEngine.Lowlevel
         internal Argument[] arguments;
         Matcher matcher;
         internal Opcode[] codes;
+    
         //int stackArguments = 0;
 
         IValueKind returnType;
@@ -113,7 +128,7 @@ namespace MouseEngine.Lowlevel
             return matcher.getArgs();
         }
 
-        public bool match(string s, ClassDatabase dtb)
+        public bool match(string s)
         {
             return matcher.match(s);
         }
@@ -349,27 +364,23 @@ namespace MouseEngine.Lowlevel
 
     class Function: Phrase, IReferable
     {
-        public string name;
-        public int numargs;
+        Prototype parent;
+
         int id;
 
-        public Function(CodeBlock code, string name, int numargs, int id):base(new Argument[] { }, null, new StringMatcher(name), new Opcode(opcodeType.call,new IArgItem[] { new ArgumentValue(addressMode.addrint,substitutionType.WriterRef,id,ClassDatabase.integer), new ArgumentValue(addressMode.constint,0),new ArgItemReturnValue() } ))
+        public Function(Prototype parent, CodeBlock code, Matcher matcher, IValueKind returnValue, IEnumerable<Argument> arguments, int id)
+            :base(arguments.Select((x=>Argument.fromStack(x.name, x.type))).ToArray(), returnValue, matcher, new Opcode(opcodeType.call,new IArgItem[] { new ArgumentValue(addressMode.constint,substitutionType.WriterRef,id,ClassDatabase.integer), new ArgumentValue(addressMode.constint,arguments.Count()),new ArgItemReturnValue() } ))
         {
             inside = code;
-            this.name = name;
-            this.numargs = numargs;
             this.id = id;
+            this.parent = parent;
         }
         CodeBlock inside;
         public CodeBlock getBlock()
         {
             return inside;
         }
-
-        public override string ToString()
-        {
-            return "\""+name+"\"";
-        }
+        
 
         WriterComponent writer;
 
@@ -386,6 +397,11 @@ namespace MouseEngine.Lowlevel
         public int getID()
         {
             return id;
+        }
+
+        internal void setBlock(CodeBlock codeBlock)
+        {
+            inside = codeBlock;
         }
     }
 

@@ -6,9 +6,18 @@ The Bedroom is a room:
 	Description is 99
 #	k is bla
 	To start game:
-		check the stack
 		set io system to 2
 		let n be split 0 into 2 + 1 of size 0 using 3 and rock 4
 		set the default window to n
+		turn into a 1
+		say "welcome\n"
+		turn into a 2
+		say "bye\n"
+		turn into a 3
 		return n
+	to turn into a (l, a number):
+		say "one\n"
+		say the number l
+		say "two\n"
+		return 5
 	Floor is "pink"

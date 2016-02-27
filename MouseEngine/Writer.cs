@@ -191,7 +191,7 @@ namespace MouseEngine.Lowlevel
             List<Substitution> substitutions = new List<Substitution>();
             tmp.Add(0xC1);
             tmp.Add(0x04);
-            tmp.Add((byte)func.numargs);
+            tmp.Add((byte)func.arguments.Length);
             tmp.Add(0x00);
             tmp.Add(0x00);
 
@@ -211,7 +211,7 @@ namespace MouseEngine.Lowlevel
 
         bool isStart
         {
-            get { return func.name == "start game"; }
+            get { return func.match("start game"); }
         }
 
         public override int getID()
@@ -287,8 +287,8 @@ namespace MouseEngine.Lowlevel
             {
                 if (f is Function)
                 {
-                    Components.Add(new FunctionWriter((Function)f, ((Function)f).name));
-                    if (((Function)f).name=="start game")
+                    Components.Add(new FunctionWriter((Function)f, ((Function)f).ToString()));
+                    if (((Function)f).match("start game"))
                     {
                         startfunction = (FunctionWriter)Components[Components.Count-1];
                     }

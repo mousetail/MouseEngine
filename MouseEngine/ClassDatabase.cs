@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace MouseEngine
 {
-    public struct Databases
+    public class Databases
     {
         internal ClassDatabase cdtb;
         internal Lowlevel.FunctionDatabase fdtb;
@@ -15,8 +15,8 @@ namespace MouseEngine
         public static Databases getDefault()
         {
             Databases d = new Databases();
-            d.cdtb = new ClassDatabase();
             d.fdtb = new Lowlevel.FunctionDatabase();
+            d.cdtb = new ClassDatabase(d);
             d.sdtb = new StringDatabase();
             return d;
         }
@@ -41,14 +41,14 @@ namespace MouseEngine
         public Dictionary<string, IValueKind> valueKinds;
         public Lowlevel.FunctionDatabase functionDatabase;
 
-        public ClassDatabase()
+        public ClassDatabase(Databases dtbs)
         {
             existingTypes = new Dictionary<string, KindPrototype>();
             existingObjects = new Dictionary<string, ItemPrototype>();
             valueKinds = new Dictionary<string, IValueKind>();
-            valueKinds.Add("number", str);
-            valueKinds.Add("text", integer);
-            functionDatabase = new Lowlevel.FunctionDatabase();
+            valueKinds.Add("number", integer);
+            valueKinds.Add("text", str);
+            functionDatabase = dtbs.fdtb;
             //existingTypes.Add("object", new KindPrototype("object"));
         }
         public KindPrototype getKind(string name)
@@ -58,6 +58,7 @@ namespace MouseEngine
 
         public IValueKind getKindAny(string name, bool defined)
         {
+            name = name.Trim(StringUtil.whitespace);
             if (valueKinds.ContainsKey(name))
             {
                 return valueKinds[name];
@@ -79,6 +80,7 @@ namespace MouseEngine
         }
         internal ItemPrototype getObject(string name, bool defined)
         {
+            name = name.Trim(StringUtil.whitespace);
             ItemPrototype newObject;
             if (existingObjects.ContainsKey(name))
             {
@@ -98,6 +100,7 @@ namespace MouseEngine
         }
         internal KindPrototype getKind(string name, bool defined)
         {
+            name = name.Trim(StringUtil.whitespace);
             KindPrototype newObject;
             if (existingTypes.ContainsKey(name))
             {
@@ -143,52 +146,58 @@ namespace MouseEngine
         /// <returns>the string of all the defined objects.</returns>
         public string WriteData()
         {
-            string s = "BEGIN DUMP";
-            s += "\nTypes defined:";
+            StringBuilder s = new StringBuilder("BEGIN DUMP\n");
+            s.AppendLine("Types defined");
 
-            s+=showSingleDict(this.existingTypes);
+            showSingleDict(s, existingTypes);
 
-            s += "\nObject defined:";
+            s.AppendLine("Object defined:");
 
 
-            s+=showSingleDict(this.existingObjects);
+            showSingleDict(s, existingObjects);
 
-            s += "\n";
+            s.AppendLine("");
 
+
+            s.AppendLine("definded a total of " + functionDatabase.Count() + " functions: ");
             foreach (Lowlevel.Phrase f in functionDatabase)
             {
-                s += "\ndefined function: " + f.ToString();
+                s.AppendLine("defined function: " + f.ToString());
             }
 
-            return s;
+            s.AppendLine("\n");
+
+            return s.ToString();
         }
 
-        private string showSingleDict <T> (Dictionary<string,T> v) where T :Prototype
+        private void showSingleDict <T> (StringBuilder s, Dictionary<string,T> v) where T :Prototype
         {
-            string s="\n";
             foreach (Prototype k in v.Values)
             {
-                s += "\n\t" + k.getName();
+                s.Append( "\t" + k.getName());
                 if (!k.getDefined())
                 {
-                    s += " (implied)";
+                    s.AppendLine(" (implied)");
+                }
+                else
+                {
+                    s.AppendLine();
                 }
                 foreach (KeyValuePair<string, IValueKind> l in k.getPossibleAttributes())
                 {
                     try
                     {
-                        s+="\n\t\t"+l.Key+":"+k.getAttributes()[l.Key];
+                        s.AppendLine("\t\t"+l.Key+":"+k.getAttributes()[l.Key]);
                     }
                     catch (KeyNotFoundException)
                     {
-                        s += "\n\t\t"+l.Key+":(undefined value of kind "+l.Value.ToString()+")";
+                        s.AppendLine("\t\t"+l.Key+":(undefined value of kind "+l.Value.ToString()+")");
                     }
                 }
             }
 
             
-
-            return s;
+            
         }
         /// <summary>
         /// Preforms basic checking of non-expression literals, like numbers, strings and names of existing objects
@@ -224,7 +233,7 @@ namespace MouseEngine
         public static IValueKind str = new StringValueKind();
         public static IValueKind integer = new IntValueKind();
         public static IValueKind nothing = new VoidValueKind();
-        internal static IValueKind condition;
+        internal static IValueKind condition = new ConditionValueKind();
     }
     class Prototype
     {
@@ -269,8 +278,7 @@ namespace MouseEngine
                     parent.MakeAttribute(name, ClassDatabase.getKind(value), false);
                 }
             }
-
-            Console.WriteLine(value.GetType() + " has been assigned");
+            
 
             attributes[name] = value;
             
@@ -303,13 +311,20 @@ namespace MouseEngine
     }
     interface IValueKind
     {
-        object parse(string s);
         bool isParent(IValueKind other);
 
     }
     interface IValueKind<T>: IValueKind
     {
 
+    }
+
+    struct ConditionValueKind : IValueKind
+    {
+        public bool isParent(IValueKind other)
+        {
+            return other is ConditionValueKind;
+        }
     }
 
     class IntValueKind: IValueKind<int?>
@@ -335,11 +350,7 @@ namespace MouseEngine
         {
             return s.Substring(1, s.Length - 2);
         }
-
-        object IValueKind.parse(string s)
-        {
-            return parse(s);
-        }
+        
     }
 
     class VoidValueKind : IValueKind<Nothing>
@@ -386,11 +397,7 @@ namespace MouseEngine
         {
             throw new NotImplementedException();
         }
-
-        object IValueKind.parse(string s)
-        {
-            throw new NotImplementedException();
-        }
+        
 
         public override Dictionary<string, IValueKind> getPossibleAttributes()
         {

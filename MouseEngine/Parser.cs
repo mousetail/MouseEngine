@@ -8,40 +8,164 @@ using MouseEngine.Lowlevel;
 
 namespace MouseEngine
 {
-    enum pStatus: byte {Working, Finished, SyntaxError, RelationError}
+    public enum pStatus: byte {Working, Finished, SyntaxError, RelationError}
     enum ObjType: byte { Object, Kind}
     enum ProcessingInternal: byte { GlobalFunction, LocalFunction }
-    enum BlockKind: byte { Loop=21, Condition=45} //These number are NOT actually important, I just need to avoid any being 0
+    enum BlockKind: byte { Loop=1, Condition=2} //These number are NOT actually important, I just need to avoid any being 0
 
-    public class Parser
+    interface IParser
+    {
+        pStatus Parse(string line, int linenumber);
+    }
+
+    public class Parser: IParser
     {
         BlockParser currentBlock;
         Databases databases;
+        Dictionary<int, Function> startLines=new Dictionary<int, Function>();
         public Parser()
         {
             databases = Databases.getDefault();
 
             currentBlock = new BlockParser(databases);
         }
-        public void Parse(string line)
+        public pStatus Parse(string line, int linenumber)
         {
-            if (line[0] != '#' && line[0] != '/' && !StringUtil.isBlank(line))
+            if (!isComment(line))
             {
-                pStatus result = currentBlock.Parse(line);
+                pStatus result = currentBlock.Parse(line, linenumber);
                 while (result == pStatus.Finished)
                 {
+                    foreach (KeyValuePair<int, Function> pair in currentBlock.startLines)
+                    {
+                        startLines[pair.Key] = pair.Value;
+                    }
                     currentBlock = new BlockParser(databases);
-                    result=currentBlock.Parse(line);
+                    result=currentBlock.Parse(line, linenumber);
                 }
             }
+            return pStatus.Working;
         }
         public Databases getDatabases()
         {
             return databases;
         }
+
+        bool isComment(string line)
+        {
+            return line.StartsWith("#")||line.StartsWith("/")||StringUtil.isBlank(line);
+        }
+
+        public void prepareForSecondStage()
+        {
+            foreach (KeyValuePair<int, Function> pair in currentBlock.startLines)
+            {
+                startLines[pair.Key] = pair.Value;
+            }
+            currentBlock = null;
+        }
+
+        //DATA USED FOR PARSE 2
+        Function key;
+        CodeParser Phate2Block;
+        int lastindentation = 0;
+
+        public pStatus Parse2(string line, int linenumber)
+        {
+            if (isComment(line))
+            {
+                return pStatus.Working;
+            }
+            if (Phate2Block != null)
+            {
+                pStatus result= Phate2Block.Parse(line, linenumber);
+                if (result == pStatus.Finished)
+                {
+                    key.setBlock(Phate2Block.getBlock());
+                    Phate2Block = null;
+
+                }
+                else
+                {
+                    return result;
+                }
+            }
+
+            if (startLines.ContainsKey(linenumber))
+            {
+                Phate2Block = new CodeParser(databases, startLines[linenumber], lastindentation);
+                key = startLines[linenumber];
+
+            }
+            else
+            {
+                lastindentation = StringUtil.getIndentation(line);
+            }
+            return pStatus.Working;
+        }
     }
-    class BlockParser
+
+    class IndentationManager
     {
+        /// <summary>
+        /// Used to check the when the function is done or indentation has become invalid
+        /// </summary>
+        int indentation;
+        bool indented = false;
+        int oldindentation;
+
+        public IndentationManager(IndentationManager indentation1)
+        {
+            oldindentation = indentation1.indentation;
+            indentation = oldindentation;
+        }
+
+        public IndentationManager(int lastIndentation)
+        {
+            oldindentation = lastIndentation;
+            indentation = lastIndentation;
+        }
+
+        internal string doIndentation(string line)
+        {
+            int newindentation = StringUtil.getIndentation(line);
+            if (!indented && newindentation > oldindentation)
+            {
+                indentation = newindentation;
+                indented = true;
+            }
+            else if (newindentation > indentation)
+            {
+                throw new Errors.InvalidIncreaseIndent("unexpected indent");
+            }
+            else if (!indented)
+            {
+                throw new Errors.InvalidDecreaseIndent("expected an indent");
+            }
+            else if (newindentation == oldindentation || !indented)
+            {
+                return null;
+            }
+            else if (newindentation < indentation)
+            {
+                throw new Errors.InvalidDecreaseIndent("a dedent didn't match the level of a previous indent of " + oldindentation.ToString());
+            }
+            else if (indentation == newindentation)
+            {
+                goto loopend;
+            }
+            else
+            {
+                throw new Errors.IndentationError("Some error, I don't know ecactly");
+            }
+            loopend:
+            return line.Substring(newindentation).Trim(StringUtil.whitespace);
+        }
+    }
+    class BlockParser: IParser
+    {
+
+        #region static phrases
         static string[] nameKind = { "Name", "kind" };
         static string[] functionname = { "Name" };
 
@@ -51,41 +175,95 @@ namespace MouseEngine
                                                           new MultiStringMatcher(nameKind, "An ", " is a ", ""));
         static Matcher NewAttribute = new MultiStringMatcher(nameKind, "Make property ", " of kind ", "");
         static Matcher GlobalFunction = new MultiStringMatcher(functionname, "To ", ":");
+        static Matcher GlobalReturnFunctin = new MultiStringMatcher(new[] { "kind", "args" }, "To decide what ", " is ","");
+        static Matcher ArgumentMatcher = new orMatcher(
+            new MultiStringMatcher(nameKind, "", ", a", ""),
+            new MultiStringMatcher(nameKind, "", ", an", "")
+            );
+
+        #endregion
         bool started;
         Databases dtbs;
 
         ClassDatabase dtb;
 
-        int indentation;
-        bool indented;
+        IndentationManager indent;
 
         ObjType tobj;
 
         Prototype eobj;
 
-        ProcessingInternal func;
-        string funcName;
+        
 
-        CodeParser internalParser;
+        internal Dictionary<int, Function> startLines=new Dictionary<int, Function>(); 
+
+        IParser internalParser;
+
+        Function parseFunctionDefinition(string definition)
+        {
+            IValueKind returnType;
+            string argsStr;
+            if (GlobalReturnFunctin.match(definition))
+            {
+                Dictionary<string, string> ar = GlobalReturnFunctin.getArgs();
+                returnType = dtb.getKindAny(ar["kind"], false);
+                argsStr = ar["args"];
+            }
+            else if (GlobalFunction.match(definition))
+            {
+                returnType = null;
+                argsStr = GlobalFunction.getArgs()["Name"];
+            }
+            else
+            {
+                throw new InvalidOperationException("Can't call this function if no global functions");
+            }
+
+            Range[] matcherRanges = StringUtil.getProtectedParts(argsStr).ToArray();
+
+            string[] argumentParts = StringUtil.getInsideStrings(matcherRanges, argsStr);
+
+            string[] matcherStrings = StringUtil.getInsideStrings(matcherRanges.getRangeInverse(argsStr.Length).ToArray(), argsStr);
+
+            List<Argument> arguments=new List<Argument>();
+
+            foreach (string b in argumentParts)
+            {
+#if DEBUG
+                Console.Write("argument part: ");
+                Console.WriteLine(b);
+#endif
+                if (!ArgumentMatcher.match(b))
+                {
+                    throw new Errors.SyntaxError("a argument should be in the form (name), a (kind), was \""+b+"\"");
+                }
+                Dictionary<string, string> argumentArgs = ArgumentMatcher.getArgs();
+                arguments.Add(new Argument(argumentArgs["Name"], dtb.getKindAny(argumentArgs["kind"], false)));
+            }
+
+            
+            return dtbs.fdtb.AddGlobalFunction(
+                eobj,
+                new MultiStringMatcher(arguments.Select(x => x.name).ToArray(), matcherStrings),
+                arguments, returnType);
+
+        }
 
         public BlockParser(Databases dtbs)
         {
             started = false;
             this.dtbs = dtbs;
             dtb = dtbs.cdtb;
+            indent = new IndentationManager(0);
         }
-        public pStatus Parse(string line)
+        public pStatus Parse(string line, int linenumber)
         {
             Dictionary<string, string> v;
             if (internalParser != null)
             {
-                pStatus w = internalParser.parse(line);
+                pStatus w = internalParser.Parse(line, linenumber);
                 if (w == pStatus.Finished)
                 {
-                    if (func == ProcessingInternal.GlobalFunction)
-                    {
-                        dtb.functionDatabase.AddGlobalFunction(internalParser.getBlock(), funcName, internalParser.getNumArgs());
-                    }
                     internalParser = null;
                 }
                 else
@@ -124,24 +302,16 @@ namespace MouseEngine
                 }
                 else
                 {
-                    Console.WriteLine("No match");
+                    throw new Errors.ItemMatchException("Expected either a kind of object definition, got " + line);
                 }
             }
             else
             {
-                int newindentation = StringUtil.getIndentation(line);
-                
-                if (!indented)
-                {
-                    indented = true;
-                    indentation = newindentation;
-                }
-                else if (newindentation == 0)
+                string strippedLine = indent.doIndentation(line);
+                if (strippedLine == null)
                 {
                     return pStatus.Finished;
                 }
-
-                string strippedLine = line.Substring(indentation);
 
                 if (PropertyDefinition.match(strippedLine))
                 {
@@ -150,16 +320,20 @@ namespace MouseEngine
                 }
                 else if (tobj == ObjType.Kind && NewAttribute.match(strippedLine))
                 {
-                    Console.WriteLine("This is an attribute");
                     v = NewAttribute.getArgs();
                     ((KindPrototype)eobj).MakeAttribute((string)v["Name"], dtb.getKindAny( (string)v["kind"], false), true);
 
                 }
                 else if (GlobalFunction.match(strippedLine))
                 {
-                    internalParser = new CodeParser(dtbs, indentation);
-                    func = ProcessingInternal.GlobalFunction;
-                    funcName = (string)GlobalFunction.getArgs()["Name"];
+                    startLines[linenumber]= parseFunctionDefinition(strippedLine);
+                    internalParser = new DummyParser(indent);
+                }
+                else
+                {
+                    
+                    throw new Errors.ItemMatchException("Don't know what to do with line: " + line);
+
                 }
             }
             return pStatus.Working;
@@ -168,7 +342,7 @@ namespace MouseEngine
         }
         
     }
-    class CodeParser
+    class CodeParser: IParser
     {
         //List<byte> data;
 
@@ -203,12 +377,7 @@ namespace MouseEngine
         ifElseCodeBlock internalBlock;
         BlockKind lastBlockKind;
 
-        /// <summary>
-        /// Used to check the when the function is done or indentation has become invalid
-        /// </summary>
-        int indentation;
-        bool indented;
-        int oldindentation;
+        IndentationManager indent;
         
         /// <summary>
         /// The local variables for this function
@@ -220,27 +389,40 @@ namespace MouseEngine
             return varindex*4;
         }
 
-        public CodeParser(Databases dtbs, int indentation)
+        public CodeParser(Databases dtbs, IndentationManager oldIndentation)
         {
             fdtb = dtbs.fdtb;
             cdtb = dtbs.cdtb;
             sdtb = dtbs.sdtb;
-            oldindentation = indentation;
-            indented = false;
+            indent = new IndentationManager(oldIndentation);
             block = new CodeBlock();
         }
 
-        private CodeParser(ClassDatabase cdtb, FunctionDatabase fdtb, StringDatabase sdtb, int indentation, Dictionary<string, LocalVariable> loc)
+        private CodeParser(ClassDatabase cdtb, FunctionDatabase fdtb, StringDatabase sdtb, IndentationManager indentation, Dictionary<string, LocalVariable> loc)
         {
             this.cdtb = cdtb;
             this.sdtb = sdtb;
             this.fdtb = fdtb;
-            oldindentation = indentation;
+            indent = new IndentationManager(indentation);
             locals = loc;
-            indented = false;
             block = new CodeBlock();
         }
 
+        public CodeParser(Databases databases, Function f, int lastindentation)
+        {
+            fdtb = databases.fdtb;
+            cdtb = databases.cdtb;
+            sdtb = databases.sdtb;
+            indent = new IndentationManager(lastindentation);
+            foreach (Argument a in f.arguments)
+            {
+                locals[a.name] = new LocalVariable(locals.Count, a.type);
+            }
+
+            Console.WriteLine("Locals are: " + locals.toAdvancedString());
+
+            block = new CodeBlock();
+        }
 
         public void setUpCondition(string condition)
         {
@@ -256,19 +438,19 @@ namespace MouseEngine
             {
                 internalBlock = new ifElseCodeBlock();
             }
-            nested = new CodeParser(cdtb, fdtb, sdtb, indentation, locals);
+            nested = new CodeParser(cdtb, fdtb, sdtb, indent, locals);
             internalBlock.addIfRange(internalBlock.Count, internalBlock.Count);
 
         }
 
-        public pStatus parse(string line)
+        public pStatus Parse(string line, int linenumber)
         {
             bool finishInternal = false;
             bool doEsle = false;
 
             if (nested != null)
             {
-                pStatus stat= nested.parse(line);
+                pStatus stat= nested.Parse(line, linenumber);
                 if (stat==pStatus.Working || stat == pStatus.SyntaxError)
                 {
                     return stat;
@@ -283,28 +465,13 @@ namespace MouseEngine
             {
                 //short f=0;
             }
-            int newindentation = StringUtil.getIndentation(line);
-            if (!indented && newindentation > oldindentation)
+
+
+            string shortString = indent.doIndentation(line);
+            if (shortString == null)
             {
-                indentation = newindentation;
-            }
-            else if (newindentation > indentation)
-            {
-                throw new Errors.IndentationError("unexpected indent");
-            }
-            else if (newindentation == oldindentation)
-            {
-                Console.WriteLine("Finished parsing function, because indentation is "+oldindentation.ToString());
-                Console.WriteLine("\tLine: " + line);
-                DictUtil.SayDict(locals);
                 return pStatus.Finished;
             }
-            else if (newindentation < indentation)
-            {
-                throw new Errors.IndentationError("unexpected dedent (old indentation was "+oldindentation.ToString()+" but new indentation is "+newindentation.ToString()+")");
-            }
-
-            string shortString = line.Substring(newindentation).Trim(StringUtil.whitespace);
 
             if (finishInternal)
             {
@@ -477,7 +644,7 @@ namespace MouseEngine
                 Exception lastEx = null;
                 foreach (Phrase f in fdtb)
                 {
-                    if (f.match(expression, cdtb))
+                    if (f.match(expression))
                     {
                         try
                         {
@@ -524,7 +691,9 @@ namespace MouseEngine
 
                 if (!v.type.isParent(t.getKind()))
                 {
-                    throw new Errors.TypeMismatchException("type " + v.type.ToString() + " is incompatable with " + t.getKind().ToString());
+                    throw new Errors.TypeMismatchException("function requres a " + v.type.ToString() +
+                        " but instead got incompatable type  " + t.getKind().ToString()+"("
+                        +args[v.name]+ ")");
                 }
 
                 if (v.isStackArgument)
@@ -578,7 +747,7 @@ namespace MouseEngine
         }
     }
 
-    
+    #region structs
 
     interface IArgItem
     {
@@ -740,6 +909,43 @@ namespace MouseEngine
         public override string ToString()
         {
             return index.ToString() + " of kind " + kind.ToString();
+        }
+    }
+
+    #endregion
+
+    class DummyParser: IParser
+    {
+        Stack<IndentationManager> indent;
+
+        public DummyParser(IndentationManager oldIndent)
+        {
+            indent = new Stack<IndentationManager>();
+            indent.Push(new IndentationManager(oldIndent));
+        }
+
+        public pStatus Parse(string line, int linenumber)
+        {
+            
+            string s = "";
+            try
+            {
+                IndentationManager m = indent.Peek();
+                s = m.doIndentation(line);
+            }
+            catch (Errors.InvalidIncreaseIndent)
+            {
+                indent.Push(new IndentationManager(indent.Peek()));
+            }
+            if (s == null)
+            {
+                indent.Pop();
+                if (indent.Count == 0)
+                {
+                    return pStatus.Finished;
+                }
+            }
+            return pStatus.Working;
         }
     }
 }
