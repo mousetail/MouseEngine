@@ -223,7 +223,7 @@ namespace MouseEngine
 
             string[] argumentParts = StringUtil.getInsideStrings(matcherRanges, argsStr);
 
-            string[] matcherStrings = StringUtil.getInsideStrings(matcherRanges.getRangeInverse(argsStr.Length).ToArray(), argsStr);
+            string[] matcherStrings = StringUtil.getInsideStrings(StringUtil.getUnprotectedParts(argsStr).ToArray(),argsStr);
 
             List<Argument> arguments=new List<Argument>();
 
@@ -629,6 +629,8 @@ namespace MouseEngine
 
         public ArgumentValue EvalExpression(string expression, CodeBlock placeToWriteTo, bool useOutput)
         {
+            expression = expression.Trim(StringUtil.whitespace);
+
             if (locals.ContainsKey(expression))
             {
                 return new ArgumentValue(addressMode.frameint, getFramePos((int)locals[expression]), locals[expression].kind);
@@ -653,7 +655,10 @@ namespace MouseEngine
                         }
                         catch (Errors.ParsingException ex)
                         {
-                            lastEx = ex;
+                            if (lastEx == null)
+                            {
+                                lastEx = ex;
+                            }
                             returnValue = null;
                         }
                     }
@@ -716,6 +721,7 @@ namespace MouseEngine
 
         public CodeBlock getBlock()
         {
+            block.locals = locals;
             return block;
         }
 

@@ -9,6 +9,7 @@ namespace MouseEngineTest
     public class RangeTester
     {
         [TestMethod]
+        [TestCategory("Range")]
         public void TestNoIntersect()
         {
             Range r1 = new Range(1, 3);
@@ -16,6 +17,7 @@ namespace MouseEngineTest
             Assert.AreEqual(false, r1.intersects(r2));
         }
         [TestMethod]
+        [TestCategory("Range")]
         public void TestNoIntersectInverse()
         {
             Range r1 = new Range(1, 3);
@@ -23,6 +25,7 @@ namespace MouseEngineTest
             Assert.AreEqual(false, r2.intersects(r1));
         }
         [TestMethod]
+        [TestCategory("Range")]
         public void TestIntersect()
         {
             Range r1 = new Range(1, 4);
@@ -30,6 +33,7 @@ namespace MouseEngineTest
             Assert.AreEqual(true, r1.intersects(r2));
         }
         [TestMethod]
+        [TestCategory("Range")]
         public void TestIntersectInverse()
         {
             Range r1 = new Range(1, 4);
@@ -95,6 +99,24 @@ namespace MouseEngineTest
             Assert.AreEqual(new Dictionary<string, string> { { "1", "(1+1)" }, { "2", "1" } }.toAdvancedString(),
                 m.getArgs().toAdvancedString());
         }
+        /// <summary>
+        /// Test outer parenthesis
+        /// </summary>
+        [TestMethod]
+        [TestCategory("Matcher")]
+        public void testArgumentOuterParenthesis()
+        {
+            Matcher m = getMatcherPlus();
+            Assert.IsTrue(m.match("((|1+2|))"));
+            Assert.AreEqual(
+                new Dictionary<string, string>()
+                {
+                    {"1","1" },
+                    {"2","2" }
+                }.toAdvancedString(),
+                m.getArgs().toAdvancedString()
+                );
+        }
 
         public Matcher getMatcherSpace()
         {
@@ -120,6 +142,21 @@ namespace MouseEngineTest
             Assert.AreEqual(new Dictionary<string, string>()
             { {"1","1" }, {"2","(2^3)" } }.toAdvancedString(),
             m.getArgs().toAdvancedString());
+        }
+        [TestMethod]
+        [TestCategory("Matcher")]
+        public void testBlankSpaceParinthesies()
+        {
+            Matcher m = getMatcherSpace();
+            Assert.IsTrue(m.match("((1^2))"));
+            Assert.AreEqual(
+                new Dictionary<string, string>()
+                {
+                    {"1","1" },
+                    {"2","2" }
+                }.toAdvancedString(),
+                m.getArgs().toAdvancedString()
+                );
         }
 
         [TestMethod]
@@ -168,6 +205,65 @@ namespace MouseEngineTest
                 new[] { "2345678" }.toAdvancedString(),
                 output.toAdvancedString()
                 );
+        }
+        [TestMethod]
+        [TestCategory("Util")]
+        public void testNoReduce2()
+        {
+            string testStr = "er (was)";
+            List<Range> parts = StringUtil.getProtectedParts(testStr, true);
+            Assert.AreEqual(1, parts.Count, "Length should be 0");
+            Assert.AreEqual(new[] { new Range(3, 7) }.toAdvancedString(),
+                parts.ToArray().toAdvancedString());
+        }
+        [TestMethod]
+        [TestCategory("Util")]
+        public void testNoReduce1()
+        {
+            string testStr = "er was";
+            List<Range> parts = StringUtil.getProtectedParts(testStr, true);
+            Assert.AreEqual(0, parts.Count, "Length should be 0");
+        }
+
+        [TestMethod]
+        [TestCategory("Util")]
+        public void testReduce1()
+        {
+
+            string testStr = "(er (was))";
+            List<Range> parts = StringUtil.getProtectedParts(testStr, true);
+            Assert.AreEqual(1, parts.Count, "Length should be 0");
+            Assert.AreEqual(new[] { new Range(4, 8) }.toAdvancedString(),
+                parts.ToArray().toAdvancedString());
+        }
+        [TestMethod]
+        [TestCategory("Util")]
+        public void testReduce2()
+        {
+
+            string testStr = "(((er (was))))";
+            List<Range> parts = StringUtil.getProtectedParts(testStr, true);
+            Assert.AreEqual(1, parts.Count, "Length should be 0");
+            Assert.AreEqual(new[] { new Range(6, 10) }.toAdvancedString(),
+                parts.ToArray().toAdvancedString());
+        }
+
+        [TestMethod]
+        [TestCategory("Util")]
+        public void testUnprotectedParts()
+        {
+            string testStr = "(er(f)gha)";
+            List<Range> parts = StringUtil.getUnprotectedParts(testStr, true);
+            Assert.AreEqual(
+                new[]
+                {
+                    new Range(1, 2),
+                    new Range(6, 8)
+                }.toAdvancedString(),
+                parts.ToArray().toAdvancedString()
+
+                );
+
         }
 
 

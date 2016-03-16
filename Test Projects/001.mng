@@ -5,10 +5,21 @@ The Bedroom is a room:
 	Name is "Bedroom"
 	Description is 99
 #	k is bla
+	to fire (q, a text) with (m, a number):
+		say q
+		while (m is at least 0 - m) and not ((m + 5) is at least 44):
+			say the number m
+			say the number (m+20)/3
+			say q
+		return 1
 	To start game:
-		set io system to 2
 		let n be split 0 into 2 + 1 of size 0 using 3 and rock 4
 		set the default window to n
+		set io system to 2
+		let l be 15
+		let sdfskdfj be 99
+		let sam be 555
+		let elian be -2
 		turn into a 1
 		say "welcome\n"
 		turn into a 2
@@ -19,5 +30,7 @@ The Bedroom is a room:
 		say "one\n"
 		say the number l
 		say "two\n"
+		fire "ole" with 7
 		return 5
+			
 	Floor is "pink"

@@ -164,28 +164,21 @@ namespace MouseEngine
 
         public override bool match(string str)
         {
-            if (str.StartsWith("(") && str.EndsWith(")"))
-            {
-                str = str.Substring(1, str.Length - 2);
-            }
 
             if (segments.Length == 0)
             {
                 return true;
             }
 
-           
-            
-
-            else if (!str.StartsWith(segments[0],StringComparison.CurrentCultureIgnoreCase))
+            /*else if (!str.StartsWith(segments[0],StringComparison.CurrentCultureIgnoreCase))
             {
                 return false;
-            }
+            }*/
 
             //This code finds the parts inside parethesis that won't be scanned, because
             //They are enclosed in parenthesis
 
-            Range[] protectedParts = ArrayUtil.getRangeInverse(StringUtil.getProtectedParts(str).ToArray(),str.Length, false).ToArray();
+            Range[] protectedParts = StringUtil.getUnprotectedParts(str, true).ToArray().ToArray();
 
 
             string[] stringparts = StringUtil.getInsideStrings(protectedParts, str);
@@ -196,7 +189,7 @@ namespace MouseEngine
             bool going=true;
             int firstMatch=0;
             int lastpos = 0;
-            int strlength = 0;
+            int strlength = protectedParts[0].start ;
             for (int i=0; i < stringparts.Length; i++)
             {
                 going = true;
@@ -207,7 +200,7 @@ namespace MouseEngine
                     }
                     else if (currentIndex==segments.Length-1 && segments[currentIndex]=="")
                     {
-                        firstMatch = str.Length - strlength;
+                        firstMatch = protectedParts[i].end + 1 - strlength;
                     }
                     else
                     {

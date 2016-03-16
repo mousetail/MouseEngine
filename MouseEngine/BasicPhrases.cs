@@ -23,7 +23,7 @@
             Argument.fromStack("rock",ClassDatabase.integer),}, ClassDatabase.integer,
             new MultiStringMatcher(new[] { "parent", "type", "size", "method", "rock" }, "split ", " into ", " of size ", " using ", " and rock ", ""),
             new Opcode(opcodeType.glk, new IArgItem[] {
-                new ArgumentValue(addressMode.constint, (int)glkFunction.glk_window_open),
+                new ArgumentValue(addressMode.constint, (int)glkFunctionID.glk_window_open),
                 new ArgumentValue(addressMode.constint, 5), new ArgItemReturnValue(),
 
             }));
@@ -36,7 +36,7 @@
             Argument.fromStack ("window",ClassDatabase.integer)
         }, null, new MultiStringMatcher(new[] { "window" }, "set the default window to ", ""),
             new Opcode(opcodeType.glk, new IArgItem[] {
-                new ArgumentValue(addressMode.constint, (int)glkFunction.glk_set_window),
+                new ArgumentValue(addressMode.constint, (int)glkFunctionID.glk_set_window),
                 new ArgumentValue(addressMode.constint,1),
                 new ArgumentValue(addressMode.zero)
             }));
@@ -46,7 +46,7 @@
 
         public static Phrase GlkPoll = new Phrase(new Argument[0], ClassDatabase.integer, new StringMatcher("poll"),
             new Opcode(opcodeType.copy, new ArgumentValue(addressMode.constint, 256), ArgumentValue.Push),
-            new Opcode(opcodeType.glk, new ArgumentValue(addressMode.constint, (int)glkFunction.glk_select_poll),
+            new Opcode(opcodeType.glk, new ArgumentValue(addressMode.constint, (int)glkFunctionID.glk_select_poll),
                 new ArgumentValue(addressMode.constint, 1), new ArgItemReturnValue()));
 
         public static Phrase IOprint = new Phrase(new Argument[1] { new Argument("text", ClassDatabase.str) },
@@ -64,7 +64,11 @@
             new MultiStringMatcher(new[] { "div1", "div2" }, "", "/", ""),
             new Opcode(opcodeType.div, new ArgItemFromArguments(), new ArgItemFromArguments(), new ArgItemReturnValue()));
 
-
+        static public Phrase MathSubtract = new Phrase(new Argument[2] { new Argument("div1", ClassDatabase.integer),
+        new Argument("div2",ClassDatabase.integer) },
+            ClassDatabase.integer,
+            new MultiStringMatcher(new[] { "div1", "div2" }, "", "-", ""),
+            new Opcode(opcodeType.sub, new ArgItemFromArguments(), new ArgItemFromArguments()));
         /*
         public static BlockPhrase CondBasicIf = new BlockPhrase(true, new[] { new Argument("condition", ClassDatabase.integer) },
             new MultiStringMatcher(new[] { "condition" }, "if ", ":"), new Opcode[0],

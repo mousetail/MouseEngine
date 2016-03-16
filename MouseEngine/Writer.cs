@@ -37,7 +37,11 @@ namespace MouseEngine.Lowlevel
         ROM,
         RAM
     }
-
+    /// <summary>
+    /// A substitution is my way of dealing with byte series of which the value can not be determined until after the
+    /// smace is reserved, things like references. Various substitution are handled in diffrent places. A reference is
+    /// handled last, by the writer. A endif substitution is handled when the end of the if is decided.
+    /// </summary>
     struct Substitution
     {
         public int position;
@@ -88,7 +92,10 @@ namespace MouseEngine.Lowlevel
     }
 
     
-
+    /// <summary>
+    /// A writer component is anything that can be written at any place in the file. Some sublasses write
+    /// a function, others strings, others write whatever. 
+    /// </summary>
     abstract class WriterComponent
     {
         int identifyer;
@@ -127,7 +134,11 @@ namespace MouseEngine.Lowlevel
             return getRange().intersects(other.getRange());
         }
     }
-
+    /// <summary>
+    /// Writes the header. The header of a glulx file contains some metadata,
+    /// this function returns them in substitutions, since it has no way of
+    /// knowing the actual information, which isn't even available yet.
+    /// </summary>
     class Header : WriterComponent
     {
         public override IUnsubstitutedBytes tobytes()
@@ -155,7 +166,9 @@ namespace MouseEngine.Lowlevel
             return 36;
         }
     }
-
+    /// <summary>
+    /// Writes -1 over 4 bytes to the file. Used to make sure at least 4 bytes exist in RAM.
+    /// </summary>
     class RandomWord : WriterComponent
     {
         public override int getSize()
@@ -168,7 +181,12 @@ namespace MouseEngine.Lowlevel
             return new UnsubstitutedBytes( new byte[] { 0xff, 0xff, 0xff, 0xff }, new Substitution[0]);
         }
     }
-
+    /// <summary>
+    /// Writes a function to a file,
+    /// mostly works by calling toBytes on all the phrases
+    /// in the function. it also writes type codes, argument types
+    /// etc.
+    /// </summary>
     class FunctionWriter: WriterComponent
     {
         Function func;
@@ -191,7 +209,7 @@ namespace MouseEngine.Lowlevel
             List<Substitution> substitutions = new List<Substitution>();
             tmp.Add(0xC1);
             tmp.Add(0x04);
-            tmp.Add((byte)func.arguments.Length);
+            tmp.Add((byte)func.getLocalsLength()); //probably should do something to prevent overflow.
             tmp.Add(0x00);
             tmp.Add(0x00);
 
@@ -221,7 +239,10 @@ namespace MouseEngine.Lowlevel
 
        
     }
-
+    /// <summary>
+    /// A class that turns a string into a writeable object, incuding
+    /// deciding on encoding, terminating characters, etc.
+    /// </summary>
     class StringWriter: WriterComponent
     {
         StringItem parent;
@@ -276,7 +297,9 @@ namespace MouseEngine.Lowlevel
         }
 
         bool prepared;
-
+        /// <summary>
+        /// Assembles and orderes all components.
+        /// </summary>
         public void prepare()
         {
             Components = new List<WriterComponent>() { new RandomWord() };
@@ -302,7 +325,11 @@ namespace MouseEngine.Lowlevel
             h.place(0);
             prepared = true;
         }
-
+        /// <summary>
+        /// Formats all the data to a byte array.
+        /// Prepare should be called first.
+        /// </summary>
+        /// <returns>The array of all the bytes to be written</returns>
         public byte[] write()
         {
             Debug.Assert(prepared);
@@ -394,6 +421,11 @@ namespace MouseEngine.Lowlevel
 
         int ramstart = 0;
 
+        /// <summary>
+        /// Puts in a single substitution. This function takes the highest and last types of substitutions, and puts them where they belong.
+        /// </summary>
+        /// <param name="input">The bytest to which to sustitute</param>
+        /// <param name="what">The substitution to put in</param>
         void Substitute(IUnsubstitutedBytes input, Substitution what)
         {
             switch (what.type)
@@ -423,7 +455,6 @@ namespace MouseEngine.Lowlevel
                     input.WriteSlice(what.position, toBytes(1024));
                     break;
                 case substitutionType.WriterRef:
-#if true
                     WriterComponent wrtcmp=null;
                     foreach (WriterComponent p in ExistingComponents)
                     {
@@ -441,9 +472,7 @@ namespace MouseEngine.Lowlevel
                     {
                         throw new Errors.IDMismatchException("ID " + what.data.ToString() + " refered to, but not set to any object");
                     }
-#else
-                    input.WriteSlice(what.position, toBytes(int.MaxValue));
-#endif
+
                     break;
             }
         }
@@ -501,6 +530,9 @@ namespace MouseEngine.Lowlevel
         {
             unchecked
             {
+                if (n != 4) {
+                    k = (uint)(k % (pow(256, n)));
+                }
                 byte[] tmp = new byte[n];
                 for (int i = 0; i < n; i++)
                 {
@@ -514,9 +546,9 @@ namespace MouseEngine.Lowlevel
         static public int toInt(byte[] k)
         {
             int tmp=0;
-            for (int i=0; i<4; i++)
+            for (int i=0; i<k.Length; i++)
             {
-                tmp += pow(256, (3 - i)) * k[i];
+                tmp += pow(256, (k.Length-1 - i)) * k[i];
             }
             return tmp;
         }
@@ -530,6 +562,12 @@ namespace MouseEngine.Lowlevel
                 f *= num;
             }
             return f;
+        }
+
+        public static byte[] toBytes(int value, int size)
+        {
+            return toBytesN((uint)value, size);
+            
         }
     }
 

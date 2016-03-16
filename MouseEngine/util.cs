@@ -6,7 +6,7 @@ using System.Text;
 
 namespace MouseEngine
 {
-    static class ListUtil
+    /*static class ListUtil
     {
         public static T[] slice<T>(T[] l, int from, int to)
         {
@@ -17,7 +17,7 @@ namespace MouseEngine
             }
             return r;
         }
-    }
+    }*/
 
     static public class ArrayUtil
     {
@@ -34,6 +34,33 @@ namespace MouseEngine
             {
                 arr[i + start] = replacement[i];
             }
+        }
+
+        public static void WriteSlice<T>(this List<T> arr, int start, T[] replacement)
+        {
+            for (int i = 0; i < replacement.Length; i++)
+            {
+                arr[i + start] = replacement[i];
+            }
+        }
+
+        public static T[] readSlice<T>(this T[] arr, int start, int length)
+        {
+            T[] output = new T[length];
+            for (int i=0; i<length; i++)
+            {
+                output[i] = arr[i + start];
+            }
+            return output;
+        }
+        public static T[] readSlice<T>(this List<T> arr, int start, int length)
+        {
+            T[] output = new T[length];
+            for (int i = 0; i < length; i++)
+            {
+                output[i] = arr[i + start];
+            }
+            return output;
         }
 
         public static t[] Combine<t>(this t[] a1, t[] a2)
@@ -60,22 +87,23 @@ namespace MouseEngine
             return tmp;
         }
 
-        public static List<Range> getRangeInverse(this Range[] input, int lenght)
+        
+
+        public static List<Range> getRangeInverse(this IEnumerable<Range> input, int lenght)
         {
-            return getRangeInverse(input, lenght, true);
+            return getRangeInverse(input, 0, lenght, true);
         }
 
-        public static List<Range> getRangeInverse(this Range[] input, int lenght, bool removeUnused)
+        public static List<Range> getRangeInverse(this IEnumerable<Range> input, int start, int lenght, bool removeUnused)
         {
-            int start = 0;
             List<Range> output=new List<Range>();
             foreach (Range r in input)
             {
-                if (!removeUnused || start <= r.start)
+                if (!removeUnused || start < r.start)
                     output.Add(new Range(start, r.start - 1));
                 start = r.end+1;
             }
-            if (start <= lenght || !removeUnused)
+            if (start < lenght || !removeUnused)
             {
                 output.Add(new Range(start, lenght-1));
             }
@@ -184,62 +212,146 @@ namespace MouseEngine
             }
             return true;
         }
+
         public static List<Range> getProtectedParts(string str)
         {
-            List<Range> protectedParts = new List<Range>();
+            return getProtectionData(str, false).ProtectedParts;
+        }
+
+        public static List<Range> getUnprotectedParts(string str)
+        {
+            return getProtectionData(str, false).unprotectedParts;
+        }
+
+        public static List<Range> getProtectedParts(string str, bool reduce)
+        {
+            return getProtectionData(str, reduce).ProtectedParts;
+        }
+
+        public static List<Range> getUnprotectedParts(string str, bool reduce)
+        {
+            return getProtectionData(str, reduce).unprotectedParts;
+        }
+
+        struct protectedPartsData
+        {
+            public List<Range> ProtectedParts;
+            public List<Range> unprotectedParts;
+            public Range stripped;
+        }
+
+        private static protectedPartsData getProtectionData(string str, bool reduce)
+        {
+            List<Range> unprotectedParts = new List<Range>();
+            
 
             int minNesting = 6;
             int pnesting = 0;
             int pstartpos = 0;
 
-            pstartpos = 0;
-            pnesting = 0;
-            minNesting = 6;
+            int extraoffsetr = 1;
+            int extraoffsetl = 0;
 
-            for (int i = 0; i < str.Length; i++)
+            do
             {
-                if (str[i] == '(')
-                {
-                    pnesting += 1;
-                    if (pnesting == 1) //It was 0 before
-                    {
-                        pstartpos = i;
-                    }
-                }
-                else if (str[i] == ')')
-                {
-                    pnesting -= 1;
-                    if (pnesting == 0)
-                    {
-                        protectedParts.Add(new Range(pstartpos, i));
-                    }
-                    if (pnesting < minNesting && i != str.Length - 1)
-                    {
-                        minNesting = pnesting;
-                    }
-                }
-                else if (i == 0)
-                {
-                    minNesting = 0;
-                }
-            }
-            if (pnesting != 0)
-            {
-                throw new Errors.SyntaxError("You probably missed a set of parenthsis in the string \"" + str + "\"");
-            }
-#if false
-            if (str.Length != 0 && minNesting != 0 && str[str.Length - 1] == ')')
-            {
-                str = str.Substring(1, str.Length - 2);
-            }
-            else 
+                pstartpos = extraoffsetl;
+                pnesting = 0;
+                minNesting = 6;
 
-            if (str.Length > 0 && protectedParts.Count==0)
-            {
-                throw NotImplementedException("Some problem");
+                for (int i = extraoffsetl; i <= str.Length-extraoffsetr; i++)
+                {
+                    if (str[i] == '(')
+                    {
+                        if (pnesting == 0)
+                        {
+                            unprotectedParts.Add(new Range(pstartpos, i-1));
+                        }
+                        pnesting += 1;
+                    }
+                    else if (str[i] == ')')
+                    {
+                        pnesting -= 1;
+
+                        if (pnesting == 0)
+                        {
+                            pstartpos = i+1;
+                        }
+                        else if (pnesting < 0)
+                        {
+                            throw new Errors.SyntaxError("Someting went wrong with your parenthesees in " + str);
+                        }
+
+
+                        if (pnesting < minNesting && i != str.Length - extraoffsetr)
+                        {
+                            minNesting = pnesting;
+                        }
+                    }
+                    else if (i == extraoffsetl)
+                    {
+                        minNesting = 0;
+                    }
+                }
+                if (pnesting != 0)
+                {
+                    throw new Errors.SyntaxError("You probably missed a set of parenthsis in the string \"" + str + "\"");
+                }
+
+                if (minNesting != 0 && reduce)
+                {
+                    if (extraoffsetl >= str.Length)
+                    {
+                        return new protectedPartsData()
+                        {
+                            unprotectedParts = new List<Range>()
+                            {
+                                new Range(0,str.Length-1)
+                            },
+                            ProtectedParts = new List<Range>(),
+                            stripped = new Range(0, str.Length - 1)
+                        };
+                    }
+
+                    unprotectedParts.Clear();
+                    while (whitespace.Contains(str[extraoffsetl]))
+                    {
+                        extraoffsetl += 1;
+                    }
+
+                    while (whitespace.Contains(str[str.Length - extraoffsetr]))
+                    {
+                        extraoffsetr += 1;
+                    }
+
+                    if (str[extraoffsetl] != '(')
+                    {
+                        throw new Errors.OpcodeFormatError("Internal error: str[extraoffset left] should be (, is "+str[extraoffsetl]);
+                    }
+
+                    if (str[str.Length-extraoffsetr] != ')')
+                    {
+                        throw new Errors.OpcodeFormatError("internal error2");
+                    }
+
+                    extraoffsetr += 1;
+                    extraoffsetl += 1;
+                }
+                else
+                {
+                    unprotectedParts.Add(new Range(pstartpos, str.Length-extraoffsetr));
+                }
             }
-#endif
-            return protectedParts;
+            while (reduce && minNesting!=0);
+
+            var protect = unprotectedParts.getRangeInverse(extraoffsetl, extraoffsetr, true);
+
+            return new protectedPartsData()
+            {
+                ProtectedParts = protect,
+                unprotectedParts = unprotectedParts,
+                stripped = new Range(extraoffsetl, str.Length - extraoffsetr)
+
+            };
         }
 
         public static string[] getInsideStrings(Range[] protectedParts, string str)
@@ -253,7 +365,7 @@ namespace MouseEngine
         }
         
     }
-    static class NumUtil
+    static public class NumUtil
     {
         public static int RoundUp(this int value, int rto)
         {

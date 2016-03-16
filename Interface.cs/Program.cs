@@ -16,6 +16,8 @@ namespace MouseEngineInterface
 
         static int Main(string[] args)
         {
+            DateTime startTime = DateTime.Now;
+
             if (args.Length >= 1)
             {
                 Parser parser = new Parser();
@@ -52,7 +54,7 @@ namespace MouseEngineInterface
                     Console.WriteLine("----------");
                     Console.WriteLine("ERROR");
                     Console.WriteLine(ex.GetType().ToString() + " occurred at line " + linenumber.ToString() + " of file " + args[0]);
-                    Console.WriteLine("\t" + lastLine);
+                    Console.WriteLine("\t" + lastLine.TrimStart(StringUtil.whitespace));
                     Console.WriteLine(ex.Message);
                     Console.WriteLine("Stack Trace:");
                     Console.ForegroundColor = ConsoleColor.Gray;
@@ -86,6 +88,17 @@ namespace MouseEngineInterface
                 Console.WriteLine("Writing...");
                 writer.Write(w.write());
                 writer.Close();
+
+
+
+                DateTime newTime = DateTime.Now;
+                TimeSpan difference = newTime - startTime;
+                Console.WriteLine("Total duration: "+difference.ToString());
+
+            }
+            else
+            {
+                Console.WriteLine("please specify a file to open");
             }
 
             Console.WriteLine("Finished, press enter to exit: ");

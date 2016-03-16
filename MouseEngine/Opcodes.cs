@@ -1,6 +1,6 @@
 ﻿namespace MouseEngine.Lowlevel
 {
-    enum opcodeType : int
+    public enum opcodeType : uint
     {
         nop = 0x00,
         add = 0x10,
@@ -120,7 +120,7 @@
         jisinf = 0x1C9
     }
 
-    enum addressMode: byte
+    public enum addressMode: byte
     {
         zero=0x0,
         constbyte=0x1,
@@ -141,7 +141,7 @@
 
     }
 
-    enum glkFunction: int
+    public enum glkFunctionID: int
     {
         glk_exit = 0x0001,
         glk_set_interrupt_handler = 0x0002,

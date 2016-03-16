@@ -147,8 +147,8 @@ namespace MouseEngine.Lowlevel
             return generator.toBytes();
         }
     }
-    
-    class Condition{
+
+    class Condition {
 
         Argument[] args;
         IConditionArgValue[] PosCodes;
@@ -167,8 +167,8 @@ namespace MouseEngine.Lowlevel
         {
             return mat.match(line);
         }
-        
-        public Dictionary<string,string> getMatcherArgs()
+
+        public Dictionary<string, string> getMatcherArgs()
         {
             return mat.getArgs();
         }
@@ -233,9 +233,26 @@ namespace MouseEngine.Lowlevel
             }, new ArgValueConditionFromArgument(true, new ArgumentValue(addressMode.constint, substitutionType.endCondition, 1,
                 ClassDatabase.integer)),
             new ArgValueConditionFromArgument(false)
-            
-            
+
+
         );
+
+        public static Condition CondAtLeast = new Condition(
+            new Argument[]
+            {
+                new Argument("c1",ClassDatabase.integer),
+                new Argument("c2",ClassDatabase.integer)
+            },
+            new orMatcher(
+                new MultiStringMatcher(new[] { "c1", "c2" }, "", ">=",""),
+                new MultiStringMatcher(new[] { "c1", "c2" }, "", " is at least ","")
+                ),
+            new[]
+            {
+                new Opcode(opcodeType.jlt,new ArgItemFromArguments(), new ArgItemFromArguments())
+            },
+            new Opcode(opcodeType.jge, new ArgItemFromArguments(), new ArgItemFromArguments())
+            );
     }
 
     struct ArgItemJumpTo: IConditionArgValue

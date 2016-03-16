@@ -303,6 +303,11 @@ namespace MouseEngine
         {
             return parent;
         }
+
+        public override string ToString()
+        {
+            return name;
+        }
     }
     class ItemPrototype: Prototype
     {

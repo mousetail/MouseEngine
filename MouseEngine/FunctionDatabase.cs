@@ -18,7 +18,11 @@ namespace MouseEngine.Lowlevel
         int getID();
     }
     
-
+    /// <summary>
+    /// The function database basically cointains a list of all the functions and phrases in the program.
+    /// In debug mode, this function makes sure only one instance exist. These 2 lines can just be taken out
+    /// if you have a good reason.
+    /// </summary>
     internal class FunctionDatabase: IEnumerable<Phrase>
     {
         List<Phrase> globalFunctions;
@@ -40,13 +44,14 @@ namespace MouseEngine.Lowlevel
             globalFunctions = new List<Phrase>() { Phrase.returnf,  Phrase.add,Phrase.makeWindow, Phrase.setIOSystem,
                 Phrase.IOprintNum,
             Phrase.setIOWindow, Phrase.GiveError, Phrase.GlkPoll, Phrase.IOprint,
-            Phrase.MathDivide, Phrase.DebugCheckStack};
+            Phrase.MathDivide, Phrase.DebugCheckStack, Phrase.MathSubtract};
             globalConditions = new[]
             {
                 Condition.CondNot,
                 
                 Condition.CondEquals,
-                Condition.CondAnd
+                Condition.CondAnd,
+                Condition.CondAtLeast
             };
         }
 
@@ -70,6 +75,11 @@ namespace MouseEngine.Lowlevel
             return tmp;
         }
     }
+
+    /// <summary>
+    /// A argument is a borning struct that represents everything you can know about an argument to a function or
+    /// phrase, which is, the name and the kind.
+    /// </summary>
     internal struct Argument
     {
         public string name;
@@ -91,13 +101,22 @@ namespace MouseEngine.Lowlevel
             return b;
         }
 
-        
+        public override string ToString()
+        {
+            return name + "<" + type.ToString() + ">";
+        }
+
+
     }
 
-
+    /// <summary>
+    /// A phrase, the most important pard of the code parsing process. A phrase represents a single
+    /// typable command. All phrases in the function databases are tested for a match. A phrase can
+    /// be turned into a substituted phrase, which is a phrase with arguments frozen, which in turn
+    /// can be turned into bytes for the file. 
+    /// </summary>
     internal partial class Phrase
     {
-        //static Function print = new Function(new Argument[] { new Argument("text",ClassDatabase.str) },);
 
         
 
@@ -114,7 +133,14 @@ namespace MouseEngine.Lowlevel
             return returnType;
         }
 
-
+        /// <summary>
+        /// The phrase construction is a bit complicated. It's better to look at some examples, probably.
+        /// </summary>
+        /// <param name="args">a array of arguments the function takes</param>
+        /// <param name="returnType">the type of value the function return, can be classdatabase.nothing</param>
+        /// <param name="matcher">What matcher is used to test wheter the phrase applies? Ususally a multi string
+        /// matcher, with argnames matching the names of the arguments.</param>
+        /// <param name="opcodes">The opcode objects that make up the body of the phrase.</param>
         public Phrase(Argument[] args, IValueKind returnType, Matcher matcher, params Opcode[] opcodes)
         {
             arguments = args;
@@ -170,7 +196,10 @@ namespace MouseEngine.Lowlevel
             return tmp;
         }
     }
-
+    /// <summary>
+    /// A phrase with argument values and other stuff built in, a phrase with all the information needed to be turned into
+    /// bytes!
+    /// </summary>
     internal class SubstitutedPhrase: IByteable, IPhraseSub, ICodeByteable {
 
 
@@ -222,11 +251,15 @@ namespace MouseEngine.Lowlevel
     }
 
 
-
+    /// <summary>
+    /// A code block is just a collection of substituted phrases, and some other code objects like conditions.
+    /// </summary>
     internal class CodeBlock: IEnumerable<ICodeByteable>, ICodeByteable
     {
         
         List<ICodeByteable> content=new List<ICodeByteable>();
+        internal Dictionary<string, LocalVariable> locals;
+
         public void addRange(IEnumerable<ICodeByteable> num)
         {
             content.AddRange(num);
@@ -294,7 +327,10 @@ namespace MouseEngine.Lowlevel
         }
     }
     
-
+    /// <summary>
+    /// I am really unsure whether this should be a class. This is a code block that keeps track of where the
+    /// else's are, and substitutes them afterwards.
+    /// </summary>
     class ifElseCodeBlock: CodeBlock
     {
         public int[] phrasePositions;
@@ -362,6 +398,10 @@ namespace MouseEngine.Lowlevel
         }
     }
 
+    /// <summary>
+    /// A function is a phrase that is written by the user. A function is a phrase, but all the phrase does is use
+    /// the call opcode with a substitution to find where the actual function is stored. 
+    /// </summary>
     class Function: Phrase, IReferable
     {
         Prototype parent;
@@ -403,6 +443,11 @@ namespace MouseEngine.Lowlevel
         {
             inside = codeBlock;
         }
+
+        internal int getLocalsLength()
+        {
+            return inside.locals.Count;
+        }
     }
 
     interface IOpcode
@@ -412,7 +457,10 @@ namespace MouseEngine.Lowlevel
     }
 
 
-
+    /// <summary>
+    /// A opcode is the second most important part of code parsing. A opcode represents a opcode and all relevant arguments
+    /// in glulx. 
+    /// </summary>
     class Opcode: IOpcode, ICodeByteable
     {
 
