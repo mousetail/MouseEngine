@@ -7,10 +7,16 @@ The Bedroom is a room:
 #	k is bla
 	to fire (q, a text) with (m, a number):
 		say q
+		say "outside loop"
+		say "\n"
 		while (m is at least 0 - m) and not ((m + 5) is at least 44):
+			say "inside loop\n"
 			say the number m
 			say the number (m+20)/3
 			say q
+			let m be m-1
+		say "outside loop"
+		say "again\n"
 		return 1
 	To start game:
 		let n be split 0 into 2 + 1 of size 0 using 3 and rock 4

@@ -144,7 +144,7 @@ namespace MouseGlulx
             for (int i=funcIndex+1; 
                 mainMemory[i]!=0 || mainMemory[i+1]!=0;
                 i+=2)//8 is start of locals pos
-                                                                                // 2 blank bytes end local pos{
+                     // 2 blank bytes end local pos
             {
                 byte type= mainMemory[i];
                 byte number = mainMemory[i + 1];
@@ -224,6 +224,16 @@ namespace MouseGlulx
 
         public int pull()
         {
+            return pull(false);
+        }
+
+        public int pull(bool safe)
+        {
+            if (safe && (stack.Count - 4 < currentFunctionData.localEnd))
+            {
+                throw new StackError("stack underflow");
+            }
+
             byte[] bytes = new byte[4];
             for (int i = 0; i < 4; i++)
             {

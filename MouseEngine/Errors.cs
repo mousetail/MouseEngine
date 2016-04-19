@@ -6,6 +6,21 @@ using System.Threading.Tasks;
 
 namespace MouseEngine.Errors
 {
+    public interface IErrorData
+    {
+        string getExpandedString();
+        string getTitle();
+    }
+
+    public interface IExDataException
+    {
+        IErrorData getData();
+    }
+    public interface IMultiExDataException
+    {
+        IErrorData[] getData();
+    }
+
     public class ParsingException: Exception
     {
         int linenumber;
@@ -50,11 +65,43 @@ namespace MouseEngine.Errors
         }
     }
 
-    class UnformatableObjectException : ParsingException
+    class UnformatableObjectException : ParsingException, IExDataException
     {
         public UnformatableObjectException(string message) : base(message)
         {
+            dat = null;
+        }
 
+        IErrorData dat;
+
+        public UnformatableObjectException(string message, List<string> data): base(message)
+        {
+            dat = new UnfData(data);
+        }
+
+        public IErrorData getData()
+        {
+            return dat;
+        }
+    }
+
+    class UnfData : IErrorData
+    {
+        List<String> exParts;
+
+        public UnfData(List<string> exParts)
+        {
+            this.exParts = exParts;
+        }
+
+        public string getExpandedString()
+        {
+            return exParts.Aggregate((a, b)=>a + "\n" + b);
+        }
+
+        public string getTitle()
+        {
+            return exParts[0];
         }
     }
 
@@ -114,5 +161,22 @@ namespace MouseEngine.Errors
         public InvalidDecreaseIndent(string s): base(s){
 
         }
+    }
+
+    public class ErrorStack: ParsingException
+    {
+        List<ParsingException> internalErrors;
+
+        public ErrorStack(IEnumerable<ParsingException> internalErrors): base("Multiple Errors")
+        {
+            this.internalErrors = internalErrors.ToList();
+        }
+
+        public List<ParsingException> getErrors()
+        {
+            return internalErrors;
+        }
+
+
     }
 }

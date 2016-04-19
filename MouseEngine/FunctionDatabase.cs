@@ -48,10 +48,10 @@ namespace MouseEngine.Lowlevel
             globalConditions = new[]
             {
                 Condition.CondNot,
-                
+                Condition.CondAtLeast,
+
                 Condition.CondEquals,
                 Condition.CondAnd,
-                Condition.CondAtLeast
             };
         }
 
@@ -166,7 +166,7 @@ namespace MouseEngine.Lowlevel
 
         public override string ToString()
         {
-            return base.ToString() + " defined by " + matcher.ToString();
+            return GetType().Name + ": " + matcher.ToString();
         }
     }
 

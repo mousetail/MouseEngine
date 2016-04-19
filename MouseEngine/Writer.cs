@@ -237,7 +237,12 @@ namespace MouseEngine.Lowlevel
             return func.getID();
         }
 
-       
+        public override string ToString()
+        {
+            return "Function: " + func.ToString().shorten(60);
+        }
+
+
     }
     /// <summary>
     /// A class that turns a string into a writeable object, incuding
@@ -275,6 +280,13 @@ namespace MouseEngine.Lowlevel
         public override MemoryType getMemoryType()
         {
             return MemoryType.ROM;
+
+
+        }
+
+        public override string ToString()
+        {
+            return "StringWriter for \"" + parent.ToString().shorten(30) + "\"";
         }
     }
 

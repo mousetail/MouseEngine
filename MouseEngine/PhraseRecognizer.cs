@@ -22,6 +22,8 @@ namespace MouseEngine
         {
             return match(s);
         }
+
+        internal abstract parsingErrorData getLastError();
     }
     
     /// <summary>
@@ -33,6 +35,11 @@ namespace MouseEngine
         {
             return false;
         }
+
+        internal override parsingErrorData getLastError()
+        {
+            return null;
+        }
     }
 
 
@@ -41,6 +48,8 @@ namespace MouseEngine
     /// </summary>
     class StringMatcher : Matcher
     {
+        public parsingErrorData lastErroer;
+
         public string Text;
         public StringMatcher(string what)
         {
@@ -48,17 +57,29 @@ namespace MouseEngine
         }
         public override bool match(string s)
         {
-            bool result = s.Equals(Text);
+            bool result = s.Trim(StringUtil.whitespace).Equals(Text);
             if (result)
             {
                 //Debugger.Log(1, "parser", ", sucsess");
             }
             else
             {
+                lastErroer = new parsingErrorData(
+                   "String doesn't match stripped version",
+                   "No Match",
+                   s,
+                   s.Trim(StringUtil.whitespace),
+                   Text
+                   );
                 //Debugger.Log(1, "parser", ", failure");
             }
             return result;
 
+        }
+
+        internal override parsingErrorData getLastError()
+        {
+            return lastErroer;
         }
     }
 
@@ -87,6 +108,11 @@ namespace MouseEngine
         public override Dictionary<string, string> getArgs()
         {
             return selected.getArgs();
+        }
+
+        internal override parsingErrorData getLastError()
+        {
+            return selected.getLastError();
         }
     }
 
@@ -179,19 +205,40 @@ namespace MouseEngine
             //They are enclosed in parenthesis
 
             Range[] protectedParts = StringUtil.getUnprotectedParts(str, true).ToArray().ToArray();
-
-
             string[] stringparts = StringUtil.getInsideStrings(protectedParts, str);
-//Works till here
+            if ((!stringparts[0].StartsWith(segments[0], StringComparison.CurrentCultureIgnoreCase)))
+            {
+                lastError = new parsingErrorData(
+                    "The first segment is not the beginning of the string",
+                    "beggining doens't match",
+                    str,
+                    stringparts.toAdvancedString(),
+                    ToString());
+
+                return false;
+            }
+            if (!stringparts[stringparts.Length - 1].EndsWith(segments[segments.Length-1],StringComparison.CurrentCultureIgnoreCase))
+            {
+                lastError = new parsingErrorData(
+                    "The last segment is not the end of the string",
+                    "end doens't match",
+                    str,
+                    stringparts.toAdvancedString(),
+                    ToString());
+
+                return false;
+            }
             List<Range> argumentPos = new List<Range>();
+
 
             int currentIndex = 0;
             bool going=true;
             int firstMatch=0;
             int lastpos = 0;
-            int strlength = protectedParts[0].start ;
+            int strlength;
             for (int i=0; i < stringparts.Length; i++)
             {
+                strlength = protectedParts[i].start;
                 going = true;
                 while (going){
                     if (stringparts[i].Length < lastpos - strlength)
@@ -200,7 +247,14 @@ namespace MouseEngine
                     }
                     else if (currentIndex==segments.Length-1 && segments[currentIndex]=="")
                     {
-                        firstMatch = protectedParts[i].end + 1 - strlength;
+                        if (i < stringparts.Length - 1)
+                        {
+                            firstMatch = -1;
+                        }
+                        else
+                        {
+                            firstMatch = protectedParts[i].end + 1 - strlength;
+                        }
                     }
                     else
                     {
@@ -209,6 +263,12 @@ namespace MouseEngine
                     if (firstMatch < 0)
                     {
                         going = false;
+
+                        lastError = new parsingErrorData("Can not find segment " + segments[currentIndex] + " in the string",
+                            "Can't find segment",
+                            str,
+                            stringparts.toAdvancedString(),
+                            ToString());
                     }
                     else
                     {
@@ -246,16 +306,23 @@ namespace MouseEngine
                     }
 
                 }
-                if (i+1 < protectedParts.Length)
+                /*if (i+1 < protectedParts.Length)
                 {
                     strlength = protectedParts[i+1].start;
-                }
+                }*/
             }
 
             loopend:
 
             if (currentIndex != segments.Length)
             {
+                lastError = new parsingErrorData("String extends after last segment", "String too long",
+                    str,
+                    stringparts.toAdvancedString(),
+
+                    ToString()
+                    );
+
                 return false;
             }
 
@@ -289,6 +356,13 @@ namespace MouseEngine
                 tmp += "[something]";
             }
             return tmp.Substring(0, tmp.Length - 11);
+        }
+
+        parsingErrorData lastError;
+
+        internal override parsingErrorData getLastError()
+        {
+            return lastError;
         }
     }
     

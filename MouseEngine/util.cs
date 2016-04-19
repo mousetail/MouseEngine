@@ -115,7 +115,14 @@ namespace MouseEngine
             StringBuilder b = new StringBuilder();
             foreach (T k in arr)
             {
-                b.Append(k.ToString());
+                if (k != null)
+                {
+                    b.Append(k.ToString());
+                }
+                else
+                {
+                    b.Append("Null");
+                }
                 b.Append(", ");
             }
             return b.ToString();
@@ -254,9 +261,22 @@ namespace MouseEngine
 
             do
             {
-                pstartpos = extraoffsetl;
                 pnesting = 0;
                 minNesting = 6;
+
+
+                while (whitespace.Contains(str[extraoffsetl]))
+                {
+                    extraoffsetl += 1;
+                }
+
+                while (whitespace.Contains(str[str.Length - extraoffsetr]))
+                {
+                    extraoffsetr += 1;
+                }
+
+
+                pstartpos = extraoffsetl;
 
                 for (int i = extraoffsetl; i <= str.Length-extraoffsetr; i++)
                 {
@@ -313,15 +333,6 @@ namespace MouseEngine
                     }
 
                     unprotectedParts.Clear();
-                    while (whitespace.Contains(str[extraoffsetl]))
-                    {
-                        extraoffsetl += 1;
-                    }
-
-                    while (whitespace.Contains(str[str.Length - extraoffsetr]))
-                    {
-                        extraoffsetr += 1;
-                    }
 
                     if (str[extraoffsetl] != '(')
                     {
@@ -352,6 +363,7 @@ namespace MouseEngine
                 stripped = new Range(extraoffsetl, str.Length - extraoffsetr)
 
             };
+
         }
 
         public static string[] getInsideStrings(Range[] protectedParts, string str)
@@ -363,7 +375,38 @@ namespace MouseEngine
             }
             return stringparts;
         }
-        
+
+        /// <summary>
+        /// Makes sure a string is less than maxlength, and inserts
+        /// a "..." at the end if it isn't. It also removes breaking
+        /// like newlines and tabs.
+        /// </summary>
+        /// <param name="item">the string to be shortened</param>
+        /// <param name="maxlenght">the maximum length the item should be.</param>
+        /// <returns></returns>
+        public static string shorten(this string item, int maxlenght)
+        {
+            item = item.Replace("\n", "\\n").Replace("\r","\\r").Replace("\t","\\t");
+            
+            if (item.Length <= maxlenght)
+            {
+                return item;
+            }
+            else
+            {
+                return item.Substring(0,maxlenght - 3) + "...";
+            }
+        }
+
+        internal static string repeat(string v, int parsePartsIndent)
+        {
+            StringBuilder b = new StringBuilder();
+            for (int i=0; i<parsePartsIndent; i++)
+            {
+                b.Append(v);
+            }
+            return b.ToString();
+        }
     }
     static public class NumUtil
     {

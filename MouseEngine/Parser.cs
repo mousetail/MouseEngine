@@ -302,7 +302,9 @@ namespace MouseEngine
                 }
                 else
                 {
-                    throw new Errors.ItemMatchException("Expected either a kind of object definition, got " + line);
+                    throw new Errors.ItemMatchException("Expected either a kind of object definition, got " + line,
+                        ObjectFirstLine.getLastError(),
+                        KindDefinition.getLastError());
                 }
             }
             else
@@ -332,7 +334,10 @@ namespace MouseEngine
                 else
                 {
                     
-                    throw new Errors.ItemMatchException("Don't know what to do with line: " + line);
+                    throw new Errors.ItemMatchException("Don't know what to do with line: " + line,
+                        GlobalFunction.getLastError(),
+                        PropertyDefinition.getLastError(),
+                        NewAttribute.getLastError());
 
                 }
             }
@@ -443,10 +448,27 @@ namespace MouseEngine
 
         }
 
+        List<string> parseParts=new List<string>();
+        int parsePartsIndent=0;
+
+        public void RegisterParsePart(string Item)
+        {
+            parseParts.Add(StringUtil.repeat("|", parsePartsIndent) + Item);
+            parsePartsIndent++;
+        }
+
+        public void UnregisterParsePart(string Item)
+        {
+            parsePartsIndent -= 1;
+        }
+
         public pStatus Parse(string line, int linenumber)
         {
             bool finishInternal = false;
             bool doEsle = false;
+
+            
+
 
             if (nested != null)
             {
@@ -512,6 +534,11 @@ namespace MouseEngine
 
             }
 
+            if (parseParts.Count > 0)
+            {
+                parseParts.Clear();
+            }
+
             if (localVariableMathcer.match(shortString))
             {
                 Dictionary<string, string> args = localVariableMathcer.getArgs();
@@ -561,15 +588,22 @@ namespace MouseEngine
             return pStatus.Working;
         }
 
+        static int numEvalConditionCalled = 0;
+
         private SubstitutedCondition EvalCondition(string shortString)
         {
-            Exception lastEx=null;
+            RegisterParsePart(shortString);
+
+            numEvalConditionCalled++;
+
+            List<Errors.ParsingException> lastEx=new List<Errors.ParsingException>();
 
             foreach (Condition cond in fdtb.globalConditions)
             {
                 if (cond.Match(shortString))
                 {
-                    try {
+                    try
+                    {
                         Dictionary<string, string> MatcherArgs = cond.getMatcherArgs();
                         Argument[] VArgs = cond.getArgs();
                         List<ConditionArgument> tmpArguments = new List<ConditionArgument>();
@@ -586,22 +620,28 @@ namespace MouseEngine
                                 tmpArguments.Add(new ConditionArgument(conditionBlock, val));
                             }
                         }
+                        UnregisterParsePart(shortString);
                         return cond.toSubstitutedCondition(new ArgumentValue(addressMode.constint, substitutionType.NextElse, ClassDatabase.integer), tmpArguments.ToArray());
                     }
                     catch (Errors.ParsingException x)
                     {
-                        lastEx = x;
+                        lastEx.Add(x);
                     }
                 }
             }
-            if (lastEx == null)
+            if (lastEx.Count==0)
             {
-                throw new Errors.UnformatableObjectException("Can't find a condition to match " + shortString);
+                throw new Errors.UnformatableObjectException("Can't find a condition to match \"" + shortString+"\"", parseParts);
+            }
+            else if (lastEx.Count == 1)
+            {
+                throw lastEx[0];
             }
             else
             {
-                throw lastEx;
+                throw new Errors.ErrorStack( lastEx);
             }
+
         }
 
         /// <summary>
@@ -631,19 +671,23 @@ namespace MouseEngine
         {
             expression = expression.Trim(StringUtil.whitespace);
 
+            RegisterParsePart(expression);
+
             if (locals.ContainsKey(expression))
             {
+                UnregisterParsePart(expression);
                 return new ArgumentValue(addressMode.frameint, getFramePos((int)locals[expression]), locals[expression].kind);
             }
             object b = cdtb.ParseAnything(expression);
             if (b != null)
             {
+                UnregisterParsePart(expression);
                 return toValue(b);
             }
             else
             {
                 ArgumentValue? returnValue=null;
-                Exception lastEx = null;
+                List<Errors.ParsingException> lastEx = new List<Errors.ParsingException>();
                 foreach (Phrase f in fdtb)
                 {
                     if (f.match(expression))
@@ -655,25 +699,27 @@ namespace MouseEngine
                         }
                         catch (Errors.ParsingException ex)
                         {
-                            if (lastEx == null)
-                            {
-                                lastEx = ex;
-                            }
+                            lastEx.Add(ex);
                             returnValue = null;
                         }
                     }
                 }
                 if (returnValue == null)
                 {
-                    if (lastEx == null)
+                    if (lastEx.Count==0)
                     {
                         throw new Errors.SyntaxError("No code way found to match \"" + expression + "\"");
                     }
+                    else if (lastEx.Count == 1)
+                    {
+                        throw lastEx[0];
+                    }
                     else
                     {
-                        throw lastEx;
+                        throw new Errors.ErrorStack( lastEx);
                     }
                 }
+                UnregisterParsePart(expression);
                 return (ArgumentValue)returnValue;
             }
         }
@@ -953,5 +999,42 @@ namespace MouseEngine
             }
             return pStatus.Working;
         }
+    }
+
+    class parsingErrorData: Errors.IErrorData
+    {
+
+
+        string description;
+        string ShortDescription;
+        string line;
+        string strippedLine;
+        string parserDescription;
+
+        public parsingErrorData(string description,
+            string shortDescription,
+            string line,
+            string strippedLine,
+            string parserDescription)
+        {
+            this.ShortDescription = shortDescription;
+            this.description = description;
+            this.line = line;
+            this.strippedLine = strippedLine;
+            this.parserDescription = parserDescription;
+
+        }
+
+        public string getExpandedString()
+        {
+            return getTitle() + "\n" + description + "\nat: " + line.Trim(StringUtil.whitespace) + ((strippedLine != line) ? ("(" + strippedLine + ")") : "");
+        }
+
+        public string getTitle()
+        {
+            return "\""+parserDescription+"\": "+ShortDescription;
+        }
+
+
     }
 }

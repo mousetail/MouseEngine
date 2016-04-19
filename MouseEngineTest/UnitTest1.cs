@@ -48,7 +48,7 @@ namespace MouseEngineTest
     {
         public Matcher getMatcher()
         {
-            return new MultiStringMatcher(new[] { "1", "2" }, "sentance 1","sentance 2","sentance 3");
+            return new MultiStringMatcher(new[] { "1", "2" }, "sentance 1", "sentance 2", "sentance 3");
         }
 
         [TestMethod]
@@ -69,7 +69,7 @@ namespace MouseEngineTest
         public void testArgumentsBasic()
         {
             Matcher m = getMatcher();
-            Assert.AreEqual(true,m.match("sentance 1[phrase1]sentance 2[phrase2]sentance 3"));
+            Assert.AreEqual(true, m.match("sentance 1[phrase1]sentance 2[phrase2]sentance 3"));
             Dictionary<string, string> expected = new Dictionary<string, string> { { "1", "[phrase1]" },
                 {"2","[phrase2]" } };
             Dictionary<string, string> actual = m.getArgs();
@@ -86,7 +86,7 @@ namespace MouseEngineTest
         public void testArgumentParenthesis1()
         {
             Matcher m = getMatcherPlus();
-            Assert.IsTrue( m.match("|1+(1+1)|"));
+            Assert.IsTrue(m.match("|1+(1+1)|"));
             Assert.AreEqual(new Dictionary<string, string> { { "1", "1" }, { "2", "(1+1)" } }.toAdvancedString(),
                 m.getArgs().toAdvancedString());
         }
@@ -118,6 +118,39 @@ namespace MouseEngineTest
                 );
         }
 
+        [TestMethod]
+        [TestCategory("Matcher")]
+        public void TestMatcherBeginning1()
+        {
+            Matcher m = getMatcherPlus();
+
+            if (m.match("(hello)|1+2|")) {
+                Assert.IsFalse(true, m.getArgs().toAdvancedString());
+            }
+        }
+
+        [TestMethod]
+        [TestCategory("Matcher")]
+        public void TestMatcherBeginning2()
+        {
+            Matcher m = getMatcherPlus();
+            Assert.IsFalse(m.match("(hello) and |1+2|"));
+
+
+        }
+        [TestMethod]
+        [TestCategory("Matcher")]
+        public void TestMatcherBeginning3()
+        {
+            Matcher m = getMatcherPlus();
+            Assert.IsFalse(m.match("bbb|1+2"));
+
+        }
+
+        /// <summary>
+        /// the matcher (something) ^ (something)
+        /// </summary>
+        /// <returns></returns>
         public Matcher getMatcherSpace()
         {
             return new MultiStringMatcher(new string[] { "1", "2" }, "", "^", "");
@@ -158,6 +191,97 @@ namespace MouseEngineTest
                 m.getArgs().toAdvancedString()
                 );
         }
+
+        [TestMethod]
+        [TestCategory("Matcher")]
+        public void TestWhiteSpaceStrip1()
+        {
+            Matcher m = getMatcherPlus();
+            Assert.IsTrue(m.match("   |1+2|"));
+            Assert.AreEqual(
+                new Dictionary<string, string>()
+                {
+                    {"1","1" },
+                    {"2","2" }
+                }.toAdvancedString(),
+                m.getArgs().toAdvancedString()
+                );
+
+        }
+        [TestMethod]
+        [TestCategory("Matcher")]
+        public void TestWhiteSpaceStrip2()
+        {
+            Matcher m = getMatcherPlus();
+            Assert.IsTrue(m.match("|1+2|    "));
+            Assert.AreEqual(
+                new Dictionary<string, string>()
+                {
+                    {"1","1" },
+                    {"2","2" }
+                }.toAdvancedString(),
+                m.getArgs().toAdvancedString()
+                );
+
+        }
+
+        [TestMethod]
+        [TestCategory("Matcher")]
+        public void testEnd1()
+        {
+            Matcher m = getMatcherPlus();
+            Assert.IsFalse(m.match("|1+2|a"));
+        }
+
+        [TestMethod]
+        [TestCategory("Matcher")]
+        public void testEnd2()
+        {
+            Matcher m = getMatcherPlus();
+            Assert.IsFalse(m.match("|1+2|(a)"));
+        }
+
+        [TestMethod]
+        [TestCategory("Matcher")]
+        public void testEnd3()
+        {
+            Matcher m = getMatcherPlus();
+            Assert.IsFalse(m.match("|1+2|a(a)"));
+        }
+
+        [TestMethod]
+        [TestCategory("Matcher")]
+        public void TestEndParenthesisArgs()
+        {
+            Matcher m = getMatcherSpace();
+            Assert.IsTrue(m.match("(ab)^(bc)"));
+            Assert.AreEqual(
+                new Dictionary<string, string> {
+                    {"1","(ab)"}, {"2","(bc)" }
+                    }.toAdvancedString(),
+                m.getArgs().toAdvancedString()
+                );
+        }
+
+        [TestMethod]
+        [TestCategory("Matcher")]
+        public void testHalfWayParenthesis()
+        {
+            Matcher m = getMatcherSpace();
+            Assert.IsTrue(m.match("aaa (ab) ^ fff(ab^ql )"));
+            Assert.AreEqual(
+                new Dictionary<string, string>
+                {
+                    {"1","aaa (ab) " },  //The spaces are important, the real
+                    {"2"," fff(ab^ql )" }//program usually strip again every
+                }.toAdvancedString(), //iteration, but now we have the unstripped
+                m.getArgs().toAdvancedString() //raw format
+
+                );
+        }
+    }
+    [TestClass]
+    public class UtilityMatchers {
 
         [TestMethod]
         [TestCategory("Util")]
@@ -265,6 +389,44 @@ namespace MouseEngineTest
                 );
 
         }
+
+        [TestMethod][TestCategory("Util")]
+        public void testUnpotectedParts2()
+        {
+            string testStr = "  er (was) eens";
+            List<Range> parts = StringUtil.getUnprotectedParts(testStr, true);
+            Assert.AreEqual(
+                new[]
+                {
+                    new Range(2,4),
+                    new Range(10,14)
+                }.toAdvancedString(),
+                parts.ToArray().toAdvancedString()
+                );
+
+            //A bug gives 0-4,10-14
+        }
+
+        [TestMethod][
+            TestCategory("Util")]
+        public void testGetInverse1()
+        {
+            List<Range> output = ArrayUtil.getRangeInverse(new[]
+            {
+                new Range(4,5),
+                new Range(9,12)
+            }, 2, 15, true);
+
+            Assert.AreEqual(output.ToArray().toAdvancedString(),
+                new[]
+                {
+                    new Range(2,3),
+                    new Range(6,8),
+                    new Range(13,14)
+                }.toAdvancedString());
+        }
+
+        
 
 
     }

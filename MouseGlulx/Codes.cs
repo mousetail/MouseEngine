@@ -20,7 +20,7 @@ namespace MouseGlulx
             {
                 //Simple ardess modes
                 { addressMode.zero, new AdressModeBase(addressMode.zero,0, doNothing,(rock => 0))},
-                {addressMode.stack, new AdressModeBase(addressMode.stack,0,(rock, value) => push(value), (rock)=>pull()) },
+                {addressMode.stack, new AdressModeBase(addressMode.stack,0,(rock, value) => push(value), (rock)=>pull(true)) },
                 //Constant modes
                 {addressMode.constint, new AdressModeBase(addressMode.constint,4, new ErrorRaiser(new GlulxTypeError("attempt to use output constant")).raise, toInt) },
                 {addressMode.constshort, new AdressModeBase(addressMode.constshort,2, new ErrorRaiser(new GlulxTypeError("attempt to use output constant")).raise, toInt) },
@@ -70,6 +70,8 @@ namespace MouseGlulx
 
             for (int k = 0; k < (inputv + outputv); k++) //I is set elsewhere
             {
+
+                parseIndex = (k) / 2;
                 byte value;
                 if (k % 2 == 0)
                 {
@@ -80,7 +82,6 @@ namespace MouseGlulx
                     value = (byte)(mainMemory[parseIndex + startPos] / 16);
                 }
                 output[k] = getAddrBase(value);
-                parseIndex = (k+1) / 2;
             }
 
             parseIndex = (inputv + outputv + 1) / 2;
@@ -204,6 +205,11 @@ namespace MouseGlulx
         public bool isOutput;
         AdressModeBase parent;
         byte[] rock;
+
+        public override string ToString()
+        {
+            return mode.ToString() + (isOutput ? "(output)" : "(input)");
+        }
 
         public AdressModeData(AdressModeBase parent, byte[] rock, bool isOutput)
         {

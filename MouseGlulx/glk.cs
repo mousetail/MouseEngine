@@ -43,7 +43,7 @@ namespace MouseGlulx.Glk
 
     class GlkMain
     {
-        Dictionary<int, glkOpaque> opaqueObjects;
+        Dictionary<int, glkOpaque> opaqueObjects=new Dictionary<int, glkOpaque>();
         Random rand = new Random();
 
         GlkWindow baseWindow;

@@ -58,6 +58,12 @@ namespace MouseEngine
             
         }
         public string String;
+
+        public override string ToString()
+        {
+            return String;
+        }
+
         public int id;
         public static implicit operator string(StringItem forWhat)
         {

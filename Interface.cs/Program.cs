@@ -49,25 +49,11 @@ namespace MouseEngineInterface
                 }
                 catch (MouseEngine.Errors.ParsingException ex)
                 {
+
+
                     reader.Close();
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine("----------");
-                    Console.WriteLine("ERROR");
-                    Console.WriteLine(ex.GetType().ToString() + " occurred at line " + linenumber.ToString() + " of file " + args[0]);
-                    Console.WriteLine("\t" + lastLine.TrimStart(StringUtil.whitespace));
-                    Console.WriteLine(ex.Message);
-                    Console.WriteLine("Stack Trace:");
-                    Console.ForegroundColor = ConsoleColor.Gray;
-                    Console.WriteLine(ex.StackTrace);
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine("----------");
-                    Console.ForegroundColor = ConsoleColor.White;
 
-
-
-                    Console.WriteLine("press enter to exit...");
-                    Console.ReadLine();
-
+                    DisplayError(ex, linenumber, lastLine, args[0], true);
 
                     return -1;
 
@@ -105,5 +91,132 @@ namespace MouseEngineInterface
             Console.ReadLine();
             return 0;
         }
+
+        public static void DisplayError(MouseEngine.Errors.ParsingException ex, int linenumber, string lastLine, string fileName, bool ShowExtra)
+        {
+            if (ex == null)
+            {
+                Console.WriteLine("Null exception, exiting");
+                return;
+            }
+
+            if (ShowExtra)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("----------");
+                Console.WriteLine("ERROR");
+                Console.ForegroundColor = ConsoleColor.White;
+            }
+            Console.WriteLine(ex.GetType().ToString() + " occurred at line " + linenumber.ToString() + " of file " + fileName);
+            if (ShowExtra)
+            {
+                Console.WriteLine("\t" + lastLine.TrimStart(StringUtil.whitespace));
+            }
+            Console.WriteLine(ex.Message);
+            if (ex is MouseEngine.Errors.ErrorStack)
+            {
+                List<MouseEngine.Errors.ParsingException> errors = ((MouseEngine.Errors.ErrorStack)ex).getErrors();
+                for (int i = 0; i < errors.Count; i++)
+                {
+                    Console.WriteLine((i.ToString() + ": " + errors[i].GetType().ToString() + errors[i].Message).shorten(200));
+                }
+                
+
+                
+
+                DisplayError(chooseOne(errors.ToArray(),null), linenumber, lastLine, fileName, false);
+            }
+            else if (ex is MouseEngine.Errors.IExDataException)
+            {
+                Console.WriteLine(((MouseEngine.Errors.IExDataException)ex).getData().getExpandedString());
+            }
+            else if (ex is MouseEngine.Errors.IMultiExDataException)
+            {
+                var b = ((MouseEngine.Errors.IMultiExDataException)ex).getData();
+
+                if (b == null)
+                {
+                    Console.WriteLine("Null reference in data, exit");
+                    return;
+                }
+
+                for (int i=0; i<b.Length; i++)
+                {
+                    Console.WriteLine((i+1).ToString() + ": " + (b[i]!=null ? b[i].getTitle(): "Null"));
+                }
+
+                MouseEngine.Errors.IErrorData d = chooseOne(b, null);
+
+                if (d != null)
+                {
+                    Console.WriteLine(d.getExpandedString());
+                }
+            }
+            else
+            {
+
+                Console.WriteLine("Stack Trace:");
+                Console.ForegroundColor = ConsoleColor.Gray;
+                Console.WriteLine(ex.StackTrace);
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("----------");
+                Console.ForegroundColor = ConsoleColor.White;
+
+
+
+
+            }
+
+            if (ShowExtra)
+            {
+                Console.WriteLine("press enter to exit...");
+                Console.ReadLine();
+            }
+        }
+
+        public static T chooseOne<T>(T[] list, T defaultval)
+        {
+            Console.WriteLine("Enter a number to learn more, q or nothing to exit");
+
+            bool valid = false;
+            int number = -1;
+            while (!valid)
+            {
+                string line = Console.ReadLine();
+                if (line == "q" || line == "")
+                {
+                    valid = true;
+                }
+                else if (int.TryParse(line, out number))
+                {
+                    if (number > 0 && number <= list.Length)
+                    {
+                        valid = true;
+                    }
+                    else
+                    {
+                        Console.WriteLine("Out of range, try again: ");
+                        valid = false;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("output not recognized, try again: ");
+                    valid = false;
+                }
+            }
+
+            if (number > 0)
+            {
+                return list[number-1];
+            }
+            else
+            {
+                return defaultval;
+            }
+
+        }
     }
+
+   
 }

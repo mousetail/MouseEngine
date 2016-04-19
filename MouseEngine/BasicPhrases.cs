@@ -68,7 +68,7 @@
         new Argument("div2",ClassDatabase.integer) },
             ClassDatabase.integer,
             new MultiStringMatcher(new[] { "div1", "div2" }, "", "-", ""),
-            new Opcode(opcodeType.sub, new ArgItemFromArguments(), new ArgItemFromArguments()));
+            new Opcode(opcodeType.sub, new ArgItemFromArguments(), new ArgItemFromArguments(), new ArgItemReturnValue()));
         /*
         public static BlockPhrase CondBasicIf = new BlockPhrase(true, new[] { new Argument("condition", ClassDatabase.integer) },
             new MultiStringMatcher(new[] { "condition" }, "if ", ":"), new Opcode[0],

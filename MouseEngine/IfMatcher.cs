@@ -249,9 +249,9 @@ namespace MouseEngine.Lowlevel
                 ),
             new[]
             {
-                new Opcode(opcodeType.jlt,new ArgItemFromArguments(), new ArgItemFromArguments())
+                new Opcode(opcodeType.jlt,new ArgItemFromArguments(), new ArgItemFromArguments(), new ArgItemJumpTo())
             },
-            new Opcode(opcodeType.jge, new ArgItemFromArguments(), new ArgItemFromArguments())
+            new Opcode(opcodeType.jge, new ArgItemFromArguments(), new ArgItemFromArguments(), new ArgItemJumpTo())
             );
     }
 
@@ -265,7 +265,11 @@ namespace MouseEngine.Lowlevel
         ConditionArgument[] arguments;
         Condition parent;
         ArgumentValue jumpTo;
-        bool inveted;
+        /// <summary>
+        /// Inverted means there is a not in front of the condition. Most conditions have entirely different set of opcodes
+        /// for inverted or not inverted.
+        /// </summary>
+        bool inverted;
 
         internal SubstitutedCondition(Condition parent, ArgumentValue JumpTo, ConditionArgument[] arguments)
         {
@@ -279,7 +283,7 @@ namespace MouseEngine.Lowlevel
             int index = 0;
             IUnsubstitutedBytes tmp = new DynamicUnsubstitutedBytes();
             Queue<ArgumentValue> q = new Queue<ArgumentValue>(arguments.Where(x => (x.result!=null)).Select(x=>(ArgumentValue)x.result));
-            foreach (IConditionArgValue v in parent.getCodes(inveted))
+            foreach (IConditionArgValue v in parent.getCodes(inverted))
             {
                 if (v is ArgItemFromArguments)
                 {
@@ -325,8 +329,8 @@ namespace MouseEngine.Lowlevel
                     ArgumentValue? returnValue=null;
                     int initalLength = q.Count;
                     IUnsubstitutedBytes bits=b.toBytes(q,ref returnValue);
-                    int newLenght = q.Count;
-                    for (int i=0; i<(newLenght-initalLength); i++)
+                    int newLength = q.Count;
+                    for (int i=0; i<(initalLength-newLength); i++)
                     {
                         tmp.Combine(arguments[index].generator.toBytes());
                         index++;
@@ -375,12 +379,12 @@ namespace MouseEngine.Lowlevel
 
         internal void invert()
         {
-            inveted ^= true;
+            inverted ^= true;
         }
 
         internal void setInvert(bool invert)
         {
-            inveted = invert;
+            inverted = invert;
         }
     }
     
