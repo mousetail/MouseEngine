@@ -140,6 +140,50 @@ namespace MouseEngine
             }
         }
 
+        public void doIndexChecking()
+        {
+            bool done = false;
+            while (!done)
+            {
+                done = true;
+                foreach (KindPrototype k in existingTypes.Values)
+                {
+                    if (k.IDprocessingFinished)
+                    {
+                        //This space is intentionally empty: If processing if finished, nothing needs to be done
+                    }
+                    else if (k.getParent()==null || k.getParent().IDprocessingFinished == true)
+                    {
+                        //Only if these conditions are true are we ready to start processing.
+                        int lastID;
+                        if (k.getParent() == null)
+                        {
+                            lastID = 0;
+                        }
+                        else
+                        {
+                            lastID = k.getParent().nextID;
+                        }
+
+                        foreach (var b in k.getPossibleAttributes().Values)
+                        {
+                            if (b.owner== k)
+                            {
+                                b.pos = lastID;
+                                lastID += 4;
+                            }
+                        }
+                        k.nextID = lastID;
+                        k.IDprocessingFinished = true;
+                    }
+                    else
+                    {
+                        done = false;
+                    }
+                }
+            }
+        }
+
         /// <summary>
         /// This function gives a basic overview of what objects are defined.
         /// </summary>
@@ -183,7 +227,7 @@ namespace MouseEngine
                 {
                     s.AppendLine();
                 }
-                foreach (KeyValuePair<string, IValueKind> l in k.getPossibleAttributes())
+                foreach (KeyValuePair<string, KAttribute> l in k.getPossibleAttributes())
                 {
                     try
                     {
@@ -291,11 +335,16 @@ namespace MouseEngine
         {
             parent = p;
         }
+        public KindPrototype getParent()
+        {
+            return parent;
+        }
+
         public bool getDefined()
         {
             return defined;
         }
-        public virtual Dictionary<string, IValueKind> getPossibleAttributes()
+        public virtual Dictionary<string, KAttribute> getPossibleAttributes()
         {
             return parent.getPossibleAttributes();
         }
@@ -371,31 +420,56 @@ namespace MouseEngine
         }
     }
 
+    class KAttribute
+    {
+        public string name;
+        public bool defined;
+        public int? pos;
+        public IValueKind kind;
+        public KindPrototype owner;
+
+        public KAttribute (string name, IValueKind kind, bool defined, KindPrototype owner)
+        {
+            this.name = name;
+            this.defined = defined;
+            this.owner = owner;
+            this.kind = kind;
+            pos = null;
+        }
+    }
+
     class KindPrototype: Prototype, IValueKind<ItemPrototype>
     {
+        //These two variables are used by class database in the ID processing process
+        //ID processing stores whereter it's been done,
+        //and next ID at what place the next ID should be processed.
+        //Probably read the func in Class Database for info
+        public bool IDprocessingFinished = false;
+        public int nextID;
+
         public KindPrototype(ClassDatabase dtb, string name):base(dtb, name)
         {
-            subAttributes = new Dictionary<string, IValueKind>();
-            definedAttributes = new Dictionary<string, bool>();
+            subAttributes = new Dictionary<string, KAttribute>();
         }
 
-        Dictionary<string, IValueKind> subAttributes;
-        Dictionary<string, bool> definedAttributes;
+        Dictionary<string, KAttribute> subAttributes;
 
         public void MakeAttribute(string name, IValueKind type, bool defined)
         {
-            subAttributes[name] = type;
-            if (defined)
+            if (!subAttributes.ContainsKey(name))
             {
-                definedAttributes[name] = true;
+                subAttributes[name] = new KAttribute(name, type, defined, this);
+            }
+            else if (subAttributes[name].kind == type)
+            {
+                subAttributes[name].defined |= defined;
             }
             else
             {
-                if (!definedAttributes.ContainsKey(name))
-                {
-                    definedAttributes[name] = false;
-                } 
+                throw new Errors.TypeMismatchException("Attempting to give attribute " + name + " of type " + ToString()
+                    + " 2 kinds: " + subAttributes[name].kind.ToString() + ", and " + type.ToString() + ".");
             }
+            
         }
 
         public ItemPrototype parse(string s)
@@ -404,7 +478,7 @@ namespace MouseEngine
         }
         
 
-        public override Dictionary<string, IValueKind> getPossibleAttributes()
+        public override Dictionary<string, KAttribute> getPossibleAttributes()
         {
             if (parent == null)
             {

@@ -50,14 +50,28 @@ namespace MouseEngine
         {
             return databases;
         }
-
+        /// <summary>
+        /// Checks if a given line should be ignored because it's blank or starts
+        /// with a comment character.
+        /// </summary>
+        /// <param name="line">The line to check</param>
+        /// <returns></returns>
         bool isComment(string line)
         {
+            line = line.TrimStart(StringUtil.whitespace);
             return line.StartsWith("#")||line.StartsWith("/")||StringUtil.isBlank(line);
         }
 
+
+        /// <summary>
+        /// Preforms some stuff that needs to be done in between code parsing and class parsing.
+        /// The things are:
+        /// *Calling Class Database index checking func
+        /// </summary>
         public void prepareForSecondStage()
         {
+            databases.cdtb.doIndexChecking(); //2 ms
+
             foreach (KeyValuePair<int, Function> pair in currentBlock.startLines)
             {
                 startLines[pair.Key] = pair.Value;

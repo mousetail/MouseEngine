@@ -244,6 +244,31 @@ namespace MouseEngine.Lowlevel
 
 
     }
+
+    class ObjectWriter : WriterComponent
+    {
+        ItemPrototype obj;
+
+        public ObjectWriter(ItemPrototype obj)
+        {
+            this.obj = obj;
+        }
+
+        public override int getSize()
+        {
+            throw new NotImplementedException();
+        }
+
+        public override IUnsubstitutedBytes tobytes()
+        {
+            throw new NotImplementedException();
+        }
+
+        public override MemoryType getMemoryType()
+        {
+            return MemoryType.RAM;
+        }
+    }
     /// <summary>
     /// A class that turns a string into a writeable object, incuding
     /// deciding on encoding, terminating characters, etc.

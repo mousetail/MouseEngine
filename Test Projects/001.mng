@@ -7,25 +7,22 @@ The Bedroom is a room:
 #	k is bla
 	to fire (q, a text) with (m, a number):
 		say q
-		say "outside loop"
 		say "\n"
 		while (m is at least 0 - m) and not ((m + 5) is at least 44):
-			say "inside loop\n"
 			say the number m
+			say ", "
 			say the number (m+20)/3
 			say q
+			say "\n"
 			let m be m-1
-		say "outside loop"
-		say "again\n"
+		say "outside loop\n"
 		return 1
 	To start game:
+		#This parts sets up the IO system
 		let n be split 0 into 2 + 1 of size 0 using 3 and rock 4
 		set the default window to n
 		set io system to 2
-		let l be 15
-		let sdfskdfj be 99
-		let sam be 555
-		let elian be -2
+		#This is the code you actually care about:
 		turn into a 1
 		say "welcome\n"
 		turn into a 2
@@ -33,10 +30,10 @@ The Bedroom is a room:
 		turn into a 3
 		return n
 	to turn into a (l, a number):
-		say "one\n"
+		say "turning into a"
 		say the number l
-		say "two\n"
-		fire "ole" with 7
+		say "\n"
+		fire "Glulx is awsome" with l
 		return 5
 			
 	Floor is "pink"
