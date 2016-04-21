@@ -18,8 +18,10 @@ namespace MouseEngineInterface
         {
             DateTime startTime = DateTime.Now;
 
-            if (args.Length >= 1)
+            if (args.Length == 1)
             {
+                Console.WriteLine("starting processing of " + args[0]);
+
                 Parser parser = new Parser();
                 FileStream f = new FileStream(args[0], FileMode.Open);
                 
@@ -46,6 +48,8 @@ namespace MouseEngineInterface
                         parser.Parse2(lastLine, linenumber);
                         linenumber += 1;
                     }
+
+                    parser.finishStage2();
                 }
                 catch (MouseEngine.Errors.ParsingException ex)
                 {

@@ -117,6 +117,21 @@ namespace MouseEngine
             }
             return pStatus.Working;
         }
+
+        /// <summary>
+        /// Should be called after EOF in stage 2
+        /// This F makes sure all data is saved when a function
+        /// does not end naturally because of the EOF,
+        /// or does nothing if there is no such function
+        /// </summary>
+        public void finishStage2()
+        {
+            if (Phate2Block != null)
+            {
+                key.setBlock(Phate2Block.getBlock());
+
+            }
+        }
     }
 
     class IndentationManager

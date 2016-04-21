@@ -235,7 +235,7 @@ namespace MouseEngine
                     }
                     catch (KeyNotFoundException)
                     {
-                        s.AppendLine("\t\t"+l.Key+":(undefined value of kind "+l.Value.ToString()+")");
+                        s.AppendLine("\t\t"+l.Key+":(undefined value of kind "+l.Value.kind.ToString()+")");
                     }
                 }
             }
@@ -315,16 +315,28 @@ namespace MouseEngine
             {
                 if (this is KindPrototype)
                 {
-                    ((KindPrototype)this).MakeAttribute(name,ClassDatabase.getKind(value),false);
+                    ((KindPrototype)this).MakeAttribute(name, ClassDatabase.getKind(value), false);
                 }
                 else
                 {
                     parent.MakeAttribute(name, ClassDatabase.getKind(value), false);
                 }
             }
+            else {
+                IValueKind attrKind = getPossibleAttributes()[name].kind;
+                if (attrKind.isParent(ClassDatabase.getKind(value))) {
+
+                    attributes[name] = value;
+                }
+                else
+                {
+                    throw new Errors.TypeMismatchException("Trying to assign value " + value.ToString() + 
+                        "of kind"+ClassDatabase.getKind(value).ToString()+
+                        " to varable " + name + " which should be a " + attrKind.ToString());
+                }
+            }
             
 
-            attributes[name] = value;
             
         }
         public void define()
