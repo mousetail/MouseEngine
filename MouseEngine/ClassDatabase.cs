@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using MouseEngine.Lowlevel;
 
 namespace MouseEngine
 {
@@ -40,6 +41,7 @@ namespace MouseEngine
         public Dictionary<string, KindPrototype> existingTypes;
         public Dictionary<string, IValueKind> valueKinds;
         public Lowlevel.FunctionDatabase functionDatabase;
+        internal Databases databases;
 
         public ClassDatabase(Databases dtbs)
         {
@@ -49,7 +51,9 @@ namespace MouseEngine
             valueKinds.Add("number", integer);
             valueKinds.Add("text", str);
             functionDatabase = dtbs.fdtb;
-            //existingTypes.Add("object", new KindPrototype("object"));
+            databases = dtbs;
+            //existingTypes.Add("object", new KindPrototype("object"))
+            existingTypes.Add("kind",new KindPrototype(this, "kind"));
         }
         public KindPrototype getKind(string name)
         {
@@ -126,11 +130,11 @@ namespace MouseEngine
             {
                 return ((ItemPrototype)input).getKind();
             }
-            else if (input is int)
+            else if (input is int || input is I32COnvertibleWrapper)
             {
                 return integer;
             }
-            else if (input is string)
+            else if (input is string || input is StringItem)
             {
                 return str;
             }
@@ -251,20 +255,20 @@ namespace MouseEngine
         /// </summary>
         /// <param name="s"></param>
         /// <returns></returns>
-        public object ParseAnything(string s)
+        public I32Convertable ParseAnything(string s)
         {
             if (existingObjects.ContainsKey(s))
             {
                 return existingObjects[s];
             }
             else if (s.StartsWith("\"") && s.EndsWith("\"")){
-                return s.Substring(1, s.Length - 2).substituteSlashes();
+                return databases.sdtb.getStr( s.Substring(1, s.Length - 2).substituteSlashes());
             }
             else
             {
                 try
                 {
-                    return (int.Parse(s));
+                    return (new I32COnvertibleWrapper( int.Parse(s)));
                 }
                 catch (FormatException)
                 {
@@ -279,13 +283,53 @@ namespace MouseEngine
         public static IValueKind nothing = new VoidValueKind();
         internal static IValueKind condition = new ConditionValueKind();
     }
-    class Prototype
+
+    class I32COnvertibleWrapper: I32Convertable
+    {
+        public int value;
+
+        public I32COnvertibleWrapper(int value)
+        {
+            this.value = value;
+            I32Convertable f = (I32Convertable)this;
+            //this.value = (int)f;
+        }
+
+        public IUnsubstitutedBytes to32bits()
+        {
+            return new UnsubstitutedBytes(Lowlevel.Writer.toBytes(value));
+        }
+
+        /*static public implicit operator int (I32COnvertibleWrapper obj)
+        {
+            return obj.value ;
+        }*/
+
+        static public explicit operator int (I32COnvertibleWrapper obj)
+        {
+            return obj.value;
+        }
+
+    }
+
+    interface I32Convertable
+    {
+        /// <summary>
+        /// Should return an exactly 4 byte sequence, that can be
+        /// written to the file. FOr most types, this will be a referance
+        /// </summary>
+        /// <returns></returns>
+        Lowlevel.IUnsubstitutedBytes to32bits();
+    }
+
+    class Prototype: Lowlevel.IReferable
     {
         public Prototype(ClassDatabase dtb, string name)
         {
-            attributes = new Dictionary<string, object>();
+            attributes = new Dictionary<string, I32Convertable>();
             this.name = name;
             this.dtb = dtb;
+            id = Databases.ids++;
         }
 
         ClassDatabase dtb;
@@ -296,16 +340,32 @@ namespace MouseEngine
         {
             return name;
         }
-        public Dictionary<string, object> getAttributes()
+        public Dictionary<string, I32Convertable> getAttributes()
         {
             return attributes;
         }
 
-        Dictionary<string, object> attributes;
+        public I32Convertable getSpecificAttribute(string name)
+        {
+            if (attributes.ContainsKey(name))
+            {
+                return attributes[name];
+            }
+            else if (parent == null)
+            {
+                throw new KeyNotFoundException("Object " + ToString() + " has no attribute " + name);
+            }
+            else
+            {
+                return parent.getSpecificAttribute(name);
+            }
+        }
+
+        Dictionary<string, I32Convertable> attributes;
         bool defined;
         protected string name;
         protected KindPrototype parent;
-        public void setAttr(string name, object value)
+        public void setAttr(string name, I32Convertable value)
         {
             if (value == null)
             {
@@ -322,22 +382,23 @@ namespace MouseEngine
                     parent.MakeAttribute(name, ClassDatabase.getKind(value), false);
                 }
             }
-            else {
-                IValueKind attrKind = getPossibleAttributes()[name].kind;
-                if (attrKind.isParent(ClassDatabase.getKind(value))) {
 
-                    attributes[name] = value;
-                }
-                else
-                {
-                    throw new Errors.TypeMismatchException("Trying to assign value " + value.ToString() + 
-                        "of kind"+ClassDatabase.getKind(value).ToString()+
-                        " to varable " + name + " which should be a " + attrKind.ToString());
-                }
+            IValueKind attrKind = getPossibleAttributes()[name].kind;
+            if (attrKind.isParent(ClassDatabase.getKind(value)))
+            {
+
+                attributes[name] = value;
             }
-            
+            else
+            {
+                throw new Errors.TypeMismatchException("Trying to assign value " + value.ToString() +
+                    "of kind" + ClassDatabase.getKind(value).ToString() +
+                    " to varable " + name + " which should be a " + attrKind.ToString());
+            }
 
-            
+
+
+
         }
         public void define()
         {
@@ -369,11 +430,43 @@ namespace MouseEngine
         {
             return name;
         }
-    }
-    class ItemPrototype: Prototype
-    {
-        public ItemPrototype(ClassDatabase dtb, string name):base(dtb,name) { }
 
+        public int getID()
+        {
+            return id;
+        }
+
+        WriterComponent writer;
+
+        public WriterComponent getWriter()
+        {
+            return writer;
+        }
+
+        public void setWriter(WriterComponent w)
+        {
+            writer = w;
+        }
+
+        public IUnsubstitutedBytes to32bits()
+        {
+            return new UnsubstitutedBytes(new byte[] { 1, 1, 1, 1 },
+                new Substitution[]
+                {
+                    new Substitution(0,substitutionType.WriterRef,substitutionRank.Normal,getID())
+                });
+        }
+
+
+        int id;
+    }
+    class ItemPrototype: Prototype, I32Convertable
+    {
+
+        public ItemPrototype(ClassDatabase dtb, string name):base(dtb,name) {
+        }
+
+        
     }
     interface IValueKind
     {
@@ -458,16 +551,34 @@ namespace MouseEngine
         //Probably read the func in Class Database for info
         public bool IDprocessingFinished = false;
         public int nextID;
+        bool locked;
 
-        public KindPrototype(ClassDatabase dtb, string name):base(dtb, name)
+        public KindPrototype(ClassDatabase dtb, string name, bool locked):base(dtb, name)
         {
             subAttributes = new Dictionary<string, KAttribute>();
+            this.locked = locked;
+        }
+
+        public KindPrototype(ClassDatabase dtb, string name): this(dtb, name, false)
+        {
+
         }
 
         Dictionary<string, KAttribute> subAttributes;
 
         public void MakeAttribute(string name, IValueKind type, bool defined)
         {
+            if (locked)
+            {
+                //THROW some kind of error
+                throw new Errors.ReservedWordError("Attempting to add atribute to reserved class "+this.name);
+            }
+#if DEBUG
+            if (type == null)
+            {
+                throw new NullReferenceException("Type can not be null");
+            }
+#endif
             if (!subAttributes.ContainsKey(name))
             {
                 subAttributes[name] = new KAttribute(name, type, defined, this);

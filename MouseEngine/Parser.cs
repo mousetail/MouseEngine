@@ -802,15 +802,16 @@ namespace MouseEngine
 
         private ArgumentValue toValue(object v)
         {
-            if (v is int)
+            
+            if (v is int || v is I32COnvertibleWrapper)
             {
                 if (v.Equals(0))
                 {
                     return new ArgumentValue(addressMode.zero, ClassDatabase.integer) ;
                 }
-                else
+                else if (v is I32COnvertibleWrapper)
                 {
-                    return new ArgumentValue(addressMode.constint, (int)v);
+                    return new ArgumentValue(addressMode.constint, (int)(I32COnvertibleWrapper)v);
                 }
             }
             else if (v is string)
@@ -818,9 +819,26 @@ namespace MouseEngine
                 StringItem l = sdtb.getStr((string)v);
                 return (ArgumentValue)l;
             }
+            else if (v is I32Convertable)
+            {
+                I32Convertable b = (I32Convertable)v;
+                IUnsubstitutedBytes sub = b.to32bits();
+                IEnumerable<Substitution> subs = sub.substitutions;
+                if (subs.isEmpty())
+                {
+                    return new ArgumentValue(addressMode.constint, Writer.toInt(sub.bytes.ToArray()));
+                }
+                else
+                {
+                    Substitution s = subs.First();
+                    return new ArgumentValue(addressMode.constint, s.type, s.data, ClassDatabase.getKind(v));
+                }
+
+            }
             //TODO: Add options for kind and item prototypes
             throw new Errors.UnformatableObjectException("object \"" + v.ToString() + "\" of type \""+v.GetType().ToString()+" has no possible format");
         }
+
 
         internal int getNumArgs()
         {
@@ -926,12 +944,19 @@ namespace MouseEngine
             
         }
 
-        public ArgumentValue(addressMode mode, substitutionType type, int subdata, IValueKind kind)
+        public ArgumentValue(addressMode mode, substitutionType type, int? subdata, IValueKind kind)
         {
             this.mode = mode;
             substitutionType = type;
             data = new byte[4];
-            substitutionData = subdata;
+            if (subdata == null)
+            {
+                substitutionData = 0;
+            }
+            else
+            {
+                substitutionData = (int)subdata;
+            }
             this.kind = kind;
         }
 

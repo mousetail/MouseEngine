@@ -117,5 +117,15 @@ namespace MouseEngine
         {
             return id;
         }
+
+        public IUnsubstitutedBytes to32bits()
+        {
+            return new UnsubstitutedBytes(new byte[] { 0, 0, 0, 0 },
+                new Substitution[]
+                {
+                    new Substitution(0,substitutionType.WriterRef,substitutionRank.Normal,id)
+                }
+            );
+        }
     }
 }

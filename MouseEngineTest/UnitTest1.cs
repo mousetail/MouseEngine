@@ -426,6 +426,23 @@ namespace MouseEngineTest
                 }.toAdvancedString());
         }
 
+        [TestMethod]
+        [TestCategory("Util")]
+        public void TestGetEmpty1()
+        {
+            int[] empty = { };
+            Assert.IsTrue(empty.isEmpty());
+        }
+
+        [TestMethod]
+        [TestCategory("Util")]
+        public void TestGetEmpty2()
+        {
+            int[] notEmpty = { 1 };
+            Assert.IsFalse(notEmpty.isEmpty());
+        }
+
+
         
 
 

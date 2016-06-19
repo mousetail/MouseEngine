@@ -77,6 +77,12 @@ namespace MouseEngine
             return tmp;
         }
 
+        public static bool isEmpty<T>(this IEnumerable<T> list)
+        {
+            IEnumerator l = list.GetEnumerator();
+            return !(l.MoveNext());
+        }
+
         public static byte[] toBytes(this int[] arr)
         {
             byte[] tmp = new byte[arr.Length * 4];

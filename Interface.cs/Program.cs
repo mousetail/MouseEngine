@@ -130,9 +130,10 @@ namespace MouseEngineInterface
 
                 DisplayError(chooseOne(errors.ToArray(),null), linenumber, lastLine, fileName, false);
             }
-            else if (ex is MouseEngine.Errors.IExDataException)
+            else if (ex is MouseEngine.Errors.IExDataException && ((MouseEngine.Errors.IExDataException)ex).getData()!=null)
             {
-                Console.WriteLine(((MouseEngine.Errors.IExDataException)ex).getData().getExpandedString());
+                Console.WriteLine(((MouseEngine.Errors.IExDataException)ex).getData()
+                    .getExpandedString());
             }
             else if (ex is MouseEngine.Errors.IMultiExDataException)
             {

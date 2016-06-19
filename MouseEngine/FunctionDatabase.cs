@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+//using MouseEngine;
 
 namespace MouseEngine.Lowlevel
 {
@@ -11,7 +12,7 @@ namespace MouseEngine.Lowlevel
     /// A interface to link a object that will be writen to the binary, like a function or a string, to
     /// it's writer.
     /// </summary>
-    interface IReferable
+    interface IReferable: I32Convertable
     {
         WriterComponent getWriter();
         void setWriter(WriterComponent w);
@@ -447,6 +448,14 @@ namespace MouseEngine.Lowlevel
         internal int getLocalsLength()
         {
             return inside.locals.Count;
+        }
+
+        public IUnsubstitutedBytes to32bits()
+        {
+            return new UnsubstitutedBytes(new byte[] { 0, 0, 0, 0 }, new Substitution[]
+            {
+                new Substitution(0, substitutionType.WriterRef, substitutionRank.Normal, getWriter().getID())
+            });
         }
     }
 

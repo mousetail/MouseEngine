@@ -245,28 +245,113 @@ namespace MouseEngine.Lowlevel
 
     }
 
+
+    /// <summary>
+    /// Writes a object
+    /// </summary>
     class ObjectWriter : WriterComponent
     {
-        ItemPrototype obj;
+        //A object data block consists of first a 0x7b
+        //byte. The next 3 bytes are not important, they might be used later on by the garbage collector, but for now
+        //they are never checked at this point.
+        //Next follow all the attributes of the object, in the order of obj.getpossibleattributes()
+        //so attributes from parent classes come before attributes of child classes.
+        //The first attribibute is the base/type
+        Prototype obj;
 
-        public ObjectWriter(ItemPrototype obj)
+        public ObjectWriter(Prototype obj)
         {
             this.obj = obj;
+            obj.setWriter(this);
+        }
+
+        public override int getID()
+        {
+            return obj.getID();
         }
 
         public override int getSize()
         {
-            throw new NotImplementedException();
+            return obj.getPossibleAttributes().Count * 4 + 4;
         }
 
         public override IUnsubstitutedBytes tobytes()
         {
-            throw new NotImplementedException();
+            DynamicUnsubstitutedBytes bit = new DynamicUnsubstitutedBytes();
+
+            bit.WriteSlice(0, new byte[] { 0x7B, 0xFF, 0xEE, 0xBB,
+                                           0,    0,    0,    0});
+
+            bit.addSubstitution(new Substitution(4, substitutionType.WriterRef, substitutionRank.Normal, obj.getParent().getID()));
+
+
+            foreach (var b in obj.getPossibleAttributes().Values)
+            {
+                I32Convertable value = obj.getSpecificAttribute( b.name);
+                bit.Combine(value.to32bits(), (int)b.pos+4);
+            }
+
+            return bit;
         }
 
         public override MemoryType getMemoryType()
         {
             return MemoryType.RAM;
+        }
+    }
+
+    class TypeWriter: WriterComponent
+    {
+        KindPrototype parent;
+        KindPrototype kind;
+        Databases dtbs;
+        int stringID;
+
+        public override int getID()
+        {
+            return parent.getID();
+        }
+
+        public TypeWriter(KindPrototype parent, KindPrototype kind, Databases dtbs)
+        {
+            this.parent = parent;
+            this.kind = kind;
+            this.dtbs = dtbs;
+            var name = dtbs.sdtb.getStr(parent.getName());
+            stringID = name.getID();
+        }
+
+        public override int getSize()
+        {
+            return 16;
+        }
+
+        public override IUnsubstitutedBytes tobytes()
+        {
+            //A type needs to store the following attributes:
+            //PARENT
+            //A ref to the type "type"
+            //name (ref to string)
+            //It's usefull to have a ref to type first, so it can be implemented
+            //like a class in other instances.
+            //(that's really the only reason I have it)
+
+            DynamicUnsubstitutedBytes bytes = new DynamicUnsubstitutedBytes();
+            bytes.WriteSlice(0, new byte[] { 0x7A, 0, 0, 0,
+                                             0,    0, 0, 0,
+                                             0,    0, 0, 0,
+                                             0,    0, 0, 0});
+            bytes.addSubstitution(new Substitution(4, substitutionType.WriterRef, substitutionRank.Normal, kind.getID()));
+            if (parent.getParent() != null)
+            {
+                bytes.addSubstitution(new Substitution(8, substitutionType.WriterRef, substitutionRank.Normal, parent.getParent().getID()));
+            }
+           
+            bytes.addSubstitution(new Substitution(12, substitutionType.WriterRef, substitutionRank.Normal, stringID));
+
+            
+
+            return bytes;
         }
     }
     /// <summary>
@@ -325,12 +410,14 @@ namespace MouseEngine.Lowlevel
         int startFunctionDefinition;
         FunctionWriter startfunction;
         StringDatabase sdtb;
+        Databases dtbs;
 
         public Writer(Databases dtbs)
         {
             cdtb = dtbs.cdtb;
             fdtb = cdtb.functionDatabase;
             sdtb = dtbs.sdtb;
+            this.dtbs = dtbs;
         }
 
         bool prepared;
@@ -354,6 +441,31 @@ namespace MouseEngine.Lowlevel
                     }
                 }
             }
+
+            KindPrototype kind=null;
+
+            foreach (KindPrototype b in cdtb.existingTypes.Values)
+            {
+                if (b.getName().Equals( "kind", StringComparison.CurrentCultureIgnoreCase))
+                {
+                    kind = b;
+                }
+                else if (kind == null)
+                {
+                    throw new Errors.OpcodeFormatError("The type 'kind' should be the first kind in the list, was "+b.getName());
+                }
+                Components.Add(new TypeWriter(b, kind, dtbs));
+            }
+
+            foreach (ItemPrototype b in cdtb.existingObjects.Values)
+            {
+                Components.Add(new ObjectWriter(b));
+            }
+            /*
+            foreach (KindPrototype b in cdtb.existingTypes.Values)
+            {
+                Components.Add(new ObjectWriter(b));
+            }*/
             foreach (StringItem f in sdtb)
             {
                 Components.Add(new StringWriter(f));

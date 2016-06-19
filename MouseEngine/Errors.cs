@@ -179,4 +179,12 @@ namespace MouseEngine.Errors
 
 
     }
+
+    class ReservedWordError:ParsingException
+    {
+        public ReservedWordError(string message) : base(message)
+        {
+
+        }
+    }
 }
