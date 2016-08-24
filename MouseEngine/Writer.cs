@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Diagnostics;
 
@@ -323,7 +324,7 @@ namespace MouseEngine.Lowlevel
 
         public override int getSize()
         {
-            return 16;
+            return 16+4*parent.getFunctions().Count;
         }
 
         public override IUnsubstitutedBytes tobytes()
@@ -349,9 +350,21 @@ namespace MouseEngine.Lowlevel
            
             bytes.addSubstitution(new Substitution(12, substitutionType.WriterRef, substitutionRank.Normal, stringID));
 
-            
+            List<LocalFunction> localFuncs = parent.getFunctions();
+
+            foreach (var b in localFuncs)
+            {
+                //Assure there is actually free space where the subsitution goes
+                bytes.WriteSlice(b.localID * 4, new byte[4]);
+                bytes.addSubstitution(new Substitution(b.localID * 4, substitutionType.WriterRef, substitutionRank.Normal, b.getID()));
+            }
 
             return bytes;
+        }
+
+        public override string ToString()
+        {
+            return "typeWriter for "+parent.getName();
         }
     }
     /// <summary>
@@ -442,6 +455,11 @@ namespace MouseEngine.Lowlevel
                 }
             }
 
+            foreach (Function f in fdtb.getLocalFunctions())
+            {
+                Components.Add(new FunctionWriter(f, f.ToString()));
+            }
+
             KindPrototype kind=null;
 
             foreach (KindPrototype b in cdtb.existingTypes.Values)
@@ -481,7 +499,9 @@ namespace MouseEngine.Lowlevel
         /// <returns>The array of all the bytes to be written</returns>
         public byte[] write()
         {
+#if DEBUG
             Debug.Assert(prepared);
+#endif
             Comparison<WriterComponent> b = (x, y) => x.GetPosition() - y.GetPosition();
             Components.Sort((x, y) => (int)x.getMemoryType() - (int)y.getMemoryType());
 

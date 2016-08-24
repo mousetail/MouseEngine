@@ -553,6 +553,8 @@ namespace MouseEngine
         public int nextID;
         bool locked;
 
+        List<LocalFunction> localFunctions = new List<LocalFunction>();
+
         public KindPrototype(ClassDatabase dtb, string name, bool locked):base(dtb, name)
         {
             subAttributes = new Dictionary<string, KAttribute>();
@@ -562,6 +564,67 @@ namespace MouseEngine
         public KindPrototype(ClassDatabase dtb, string name): this(dtb, name, false)
         {
 
+        }
+
+        internal void addFunction(LocalFunction f)
+        {
+            if (locked)
+            {
+                throw new Errors.ReservedWordError("Attempt to add function to reserved class " + name);
+            }
+            localFunctions.Add(f);
+        }
+
+        internal List<LocalFunction> getFunctions()
+        {
+            List<LocalFunction> Parentfuncs;
+            if (this.parent != null)
+            {
+                Parentfuncs=(this.parent.getFunctions());
+            }
+            else
+            {
+                Parentfuncs = new List<LocalFunction>();
+            }
+
+            int lastIndex = 4; //First 4 places are reserved for metadata
+
+            for (int i = 0; i < localFunctions.Count; i++)
+            {
+                int id2 = -1;
+                for (int j = 0; j < Parentfuncs.Count; j++)
+                {
+                    if (localFunctions[i].getEquivolent(Parentfuncs[j]))
+                    {
+                        if (id2 != -1)
+                        {
+                            throw new Errors.ParsingException(
+                                "Somehow, two functions with same signitarue got into the parent");
+                        }
+                        id2 = j;
+                    }
+                }
+
+                if (id2 == -1)
+                {
+                    localFunctions[i].localID = lastIndex;
+                    lastIndex += 1;
+                }
+                else
+                {
+                    localFunctions[i].localID = Parentfuncs[id2].localID;
+                    Parentfuncs.RemoveAt(id2);
+                }
+
+
+            }
+
+            List<LocalFunction> final = new List<LocalFunction>();
+
+            final.AddRange(localFunctions);
+            final.AddRange(Parentfuncs);
+            
+            return final;
         }
 
         Dictionary<string, KAttribute> subAttributes;
@@ -593,6 +656,35 @@ namespace MouseEngine
                     + " 2 kinds: " + subAttributes[name].kind.ToString() + ", and " + type.ToString() + ".");
             }
             
+        }
+
+        bool preparedForWrite = false;
+
+        internal void prepareForWrite()
+        {
+            preparedForWrite = true;
+
+            if (parent != null && !parent.preparedForWrite){
+                parent.prepareForWrite();
+            }
+
+            int startPos;
+
+            if (parent!=null)
+            {
+                startPos = parent.localFunctions[parent.localFunctions.Count - 1].getID();
+            }
+            else
+            {
+                startPos = 4; //The first 4 spaces are reserved, so I start at 5 (index 4)
+                //See writer.TypeWriter for more info
+            }
+
+            foreach (var f in localFunctions)
+            {
+                f.localID=startPos;
+                startPos += 1;
+            }
         }
 
         public ItemPrototype parse(string s)

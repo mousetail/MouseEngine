@@ -28,6 +28,7 @@ namespace MouseEngine.Lowlevel
     {
         List<Phrase> globalFunctions;
         public Condition[] globalConditions;
+        List<LocalFunction> localFunctions=new List<LocalFunction>();
 #if DEBUG
         static int instances = 0;
 #endif
@@ -75,6 +76,21 @@ namespace MouseEngine.Lowlevel
 #endif
             return tmp;
         }
+
+        public LocalFunction AddLocalFunction(KindPrototype parent, Matcher m,
+            IEnumerable<Argument> args, IValueKind returnValue)
+        {
+            LocalFunction tmp = new LocalFunction(parent, null, m, returnValue, args, Databases.ids++, 0);
+            parent.addFunction(tmp);
+            localFunctions.Add(tmp);
+
+            return tmp;
+        }
+
+        internal IEnumerable<Function> getLocalFunctions()
+        {
+            return localFunctions;
+        }
     }
 
     /// <summary>
@@ -85,26 +101,50 @@ namespace MouseEngine.Lowlevel
     {
         public string name;
         public IValueKind type;
-        public bool isStackArgument;
+
+        ArgumentSpecialType special;
         
+        enum ArgumentSpecialType: byte
+        {
+            none,
+            fromStack,
+            isSelf
+        }
 
         public Argument(string name, IValueKind kind)
         {
             this.name = name;
             type = kind;
-            isStackArgument = false;
+            special = ArgumentSpecialType.none;
         }
         
         internal static Argument fromStack(string name, IValueKind kind)
         {
             Argument b = new Argument(name, kind);
-            b.isStackArgument = true;
+            b.special = ArgumentSpecialType.fromStack;
+            return b;
+        }
+
+        internal static Argument getSelf(IValueKind kind)
+        {
+            Argument b = new Argument("this", kind);
+            b.special = ArgumentSpecialType.isSelf;
             return b;
         }
 
         public override string ToString()
         {
             return name + "<" + type.ToString() + ">";
+        }
+
+        public bool isStackArgument()
+        {
+            return special == ArgumentSpecialType.fromStack;
+        }
+
+        public bool isSelfArgument()
+        {
+            return special == ArgumentSpecialType.isSelf;
         }
 
 
@@ -122,7 +162,7 @@ namespace MouseEngine.Lowlevel
         
 
         internal Argument[] arguments;
-        Matcher matcher;
+        protected Matcher matcher;
         internal Opcode[] codes;
     
         //int stackArguments = 0;
@@ -456,6 +496,45 @@ namespace MouseEngine.Lowlevel
             {
                 new Substitution(0, substitutionType.WriterRef, substitutionRank.Normal, getWriter().getID())
             });
+        }
+
+
+
+        internal Matcher getMatcher()
+        {
+            return matcher;
+        }
+
+        internal bool getEquivolent(Function other)
+        {
+            return matcher.Equals(other.matcher);
+        }
+
+        internal bool getTypeEquivolent(Function other)
+        {
+            if (!getEquivolent(other)){
+                return false;
+            }
+            for (int i=0; i<arguments.Length; i++)
+            {
+                if (!arguments[i].type.isParent(other.arguments[i].type))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    class LocalFunction: Function
+    {
+        public int localID;
+
+        public LocalFunction(KindPrototype parent, CodeBlock block, Matcher matcher, IValueKind returnValue,
+            IEnumerable<Argument> arguments, int GlobalId, int localID)
+            :base(parent, block, matcher, returnValue, arguments, GlobalId)
+        {
+            this.localID = localID;
         }
     }
 

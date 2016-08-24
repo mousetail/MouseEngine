@@ -230,6 +230,8 @@ namespace MouseEngine
 
         Function parseFunctionDefinition(string definition)
         {
+            bool isGlobal = true;
+
             IValueKind returnType;
             string argsStr;
             if (GlobalReturnFunctin.match(definition))
@@ -248,13 +250,15 @@ namespace MouseEngine
                 throw new InvalidOperationException("Can't call this function if no global functions");
             }
 
+
             Range[] matcherRanges = StringUtil.getProtectedParts(argsStr).ToArray();
 
             string[] argumentParts = StringUtil.getInsideStrings(matcherRanges, argsStr);
 
-            string[] matcherStrings = StringUtil.getInsideStrings(StringUtil.getUnprotectedParts(argsStr).ToArray(),argsStr);
+            string[] matcherStrings = StringUtil.getInsideStrings(StringUtil.getUnprotectedParts(argsStr).ToArray(), argsStr);
 
-            List<Argument> arguments=new List<Argument>();
+
+            List<Argument> arguments = new List<Argument>();
 
             foreach (string b in argumentParts)
             {
@@ -262,20 +266,51 @@ namespace MouseEngine
                 Console.Write("argument part: ");
                 Console.WriteLine(b);
 #endif
-                if (!ArgumentMatcher.match(b))
+
+                if (b.Equals("(this)") || b.Equals("(me)"))
                 {
-                    throw new Errors.SyntaxError("a argument should be in the form (name), a (kind), was \""+b+"\"");
+                    if (!isGlobal) //If I'm allready global, there shouldn't be another this/me
+                    {
+                        throw new Errors.SyntaxError("A function def can only contain one me or this");
+                    }
+
+                    isGlobal = false; //If it contains this or me, it's a local function
+
+                    arguments.Add(Argument.getSelf(eobj.getKind()));
                 }
-                Dictionary<string, string> argumentArgs = ArgumentMatcher.getArgs();
-                arguments.Add(new Argument(argumentArgs["Name"], dtb.getKindAny(argumentArgs["kind"], false)));
+                else
+                {
+
+                    if (!ArgumentMatcher.match(b))
+                    {
+                        throw new Errors.SyntaxError("a argument should be in the form (name), a (kind), was \"" + b + "\"");
+                    }
+                    Dictionary<string, string> argumentArgs = ArgumentMatcher.getArgs();
+                    arguments.Add(new Argument(argumentArgs["Name"], dtb.getKindAny(argumentArgs["kind"], false)));
+                }
             }
 
-            
-            return dtbs.fdtb.AddGlobalFunction(
-                eobj,
-                new MultiStringMatcher(arguments.Select(x => x.name).ToArray(), matcherStrings),
-                arguments, returnType);
-
+            if (isGlobal)
+            {
+                return dtbs.fdtb.AddGlobalFunction(
+                    eobj,
+                    new MultiStringMatcher(arguments.Select(x => x.name).ToArray(), matcherStrings),
+                    arguments, returnType);
+            }
+            else
+            {
+                if (eobj is KindPrototype)
+                {
+                    return dtbs.fdtb.AddLocalFunction(
+                        (KindPrototype)eobj,
+                        new MultiStringMatcher(arguments.Select(x => x.name).ToArray(), matcherStrings),
+                        arguments, returnType);
+                }
+                else
+                {
+                    throw new Errors.ParsingException("Can't define a local function in a object");
+                }
+            }
         }
 
         public BlockParser(Databases dtbs)
@@ -776,7 +811,7 @@ namespace MouseEngine
                         +args[v.name]+ ")");
                 }
 
-                if (v.isStackArgument)
+                if (v.isStackArgument())
                 {
 
 
