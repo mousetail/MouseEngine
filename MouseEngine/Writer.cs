@@ -31,7 +31,9 @@ namespace MouseEngine.Lowlevel
         EndIf,
         BlockStart,
         endCondition,
-        conditionDestination
+        conditionDestination,
+        localID,
+        numArguments
     }
     enum MemoryType : byte
     {
@@ -453,11 +455,6 @@ namespace MouseEngine.Lowlevel
                         startfunction = (FunctionWriter)Components[Components.Count-1];
                     }
                 }
-            }
-
-            foreach (Function f in fdtb.getLocalFunctions())
-            {
-                Components.Add(new FunctionWriter(f, f.ToString()));
             }
 
             KindPrototype kind=null;

@@ -28,7 +28,6 @@ namespace MouseEngine.Lowlevel
     {
         List<Phrase> globalFunctions;
         public Condition[] globalConditions;
-        List<LocalFunction> localFunctions=new List<LocalFunction>();
 #if DEBUG
         static int instances = 0;
 #endif
@@ -82,14 +81,9 @@ namespace MouseEngine.Lowlevel
         {
             LocalFunction tmp = new LocalFunction(parent, null, m, returnValue, args, Databases.ids++, 0);
             parent.addFunction(tmp);
-            localFunctions.Add(tmp);
+            globalFunctions.Add(tmp);
 
             return tmp;
-        }
-
-        internal IEnumerable<Function> getLocalFunctions()
-        {
-            return localFunctions;
         }
     }
 
@@ -209,13 +203,18 @@ namespace MouseEngine.Lowlevel
         {
             return GetType().Name + ": " + matcher.ToString();
         }
+
+        internal virtual int? substitute(Substitution s)
+        {
+            return null;
+        }
     }
 
     interface IPhraseSub: IByteable
     {
 
     }
-
+    /*
     class ArbitrarySubstitutedPhrase : IByteable, IPhraseSub
     {
         Opcode[] codes;
@@ -237,6 +236,7 @@ namespace MouseEngine.Lowlevel
             return tmp;
         }
     }
+    */
     /// <summary>
     /// A phrase with argument values and other stuff built in, a phrase with all the information needed to be turned into
     /// bytes!
@@ -280,6 +280,26 @@ namespace MouseEngine.Lowlevel
             if (returnValue!=null && returnValue.Value.getMode() != addressMode.zero)
             {
                 throw new Errors.ReturnTypeViolationError("Attempt to use the return value of " + ToString() + " which has no return value");
+            }
+
+            List<Substitution> subsToRemove = new List<Substitution>();
+
+            foreach (Substitution s in substitutions)
+            {
+                if (!s.completed)
+                {
+                    int? v = parent.substitute(s);
+                    if (v != null)
+                    {
+                        final.WriteSlice(s.position, Writer.toBytes((int)v));
+                        subsToRemove.Add(s);
+                    }
+                }
+            }
+
+            foreach (Substitution s in subsToRemove)
+            {
+                substitutions.Remove(s);
             }
 
             return new UnsubstitutedBytes(final, substitutions.ToArray());
@@ -449,13 +469,29 @@ namespace MouseEngine.Lowlevel
 
         int id;
 
-        public Function(Prototype parent, CodeBlock code, Matcher matcher, IValueKind returnValue, IEnumerable<Argument> arguments, int id)
-            :base(arguments.Select((x=>Argument.fromStack(x.name, x.type))).ToArray(), returnValue, matcher, new Opcode(opcodeType.call,new IArgItem[] { new ArgumentValue(addressMode.constint,substitutionType.WriterRef,id,ClassDatabase.integer), new ArgumentValue(addressMode.constint,arguments.Count()),new ArgItemReturnValue() } ))
+        public Function(Prototype parent, CodeBlock code, Matcher matcher, IValueKind returnValue,
+            IEnumerable<Argument> arguments, int id)
+            :this(parent, code, matcher, returnValue, arguments.Select((x=>Argument.fromStack(x.name,x.type)))
+                 .ToArray(), id,
+                  new Opcode(opcodeType.call, new IArgItem[] { new ArgumentValue(addressMode.constint,
+                      substitutionType.WriterRef, id, ClassDatabase.integer),
+                      new ArgumentValue(addressMode.constint, arguments.Count()), new ArgItemReturnValue()
+                  }
+                    )
+                  )
+        {
+            
+        }
+
+        protected Function(Prototype parent, CodeBlock code, Matcher matcher, IValueKind returnValue,
+            Argument[] arguments, int id, params Opcode[] opcodes):
+                base(arguments, returnValue, matcher, opcodes)
         {
             inside = code;
             this.id = id;
             this.parent = parent;
         }
+
         CodeBlock inside;
         public CodeBlock getBlock()
         {
@@ -524,6 +560,15 @@ namespace MouseEngine.Lowlevel
             }
             return true;
         }
+
+        internal override int? substitute(Substitution s)
+        {
+            if (s.type == substitutionType.numArguments)
+            {
+                return arguments.Length;
+            }
+            return base.substitute(s);
+        }
     }
 
     class LocalFunction: Function
@@ -532,9 +577,37 @@ namespace MouseEngine.Lowlevel
 
         public LocalFunction(KindPrototype parent, CodeBlock block, Matcher matcher, IValueKind returnValue,
             IEnumerable<Argument> arguments, int GlobalId, int localID)
-            :base(parent, block, matcher, returnValue, arguments, GlobalId)
+            :base(parent, block, matcher, returnValue,
+                 arguments.Select((x=>x.isSelfArgument()?x:Argument.fromStack(x.name,x.type)))
+                 .OrderBy((x=>x.isSelfArgument()?1:0))
+                 .ToArray(),
+                 GlobalId,
+                 new Opcode(opcodeType.aload, new ArgItemFromArguments(),
+                     new ArgumentValue(addressMode.constint, 1),
+                     new ArgumentValue(addressMode.stack)),
+                 new Opcode(opcodeType.aload, new ArgumentValue(addressMode.stack),
+                     new ArgumentValue(addressMode.constint, substitutionType.localID, GlobalId, ClassDatabase.integer),
+                     new ArgumentValue(addressMode.stack)
+                 ),
+                 new Opcode(opcodeType.call, new ArgumentValue(addressMode.stack),
+                     new ArgumentValue(addressMode.constint, substitutionType.numArguments, GlobalId,
+                         ClassDatabase.integer),
+                     new ArgItemReturnValue())
+                 )
         {
             this.localID = localID;
+        }
+
+        internal override int? substitute(Substitution s)
+        {
+            if (s.type == substitutionType.numArguments)
+            {
+                return arguments.Length - 1;
+            }
+            else if (s.type == substitutionType.localID){
+                return localID;
+            }
+            return base.substitute(s);
         }
     }
 
