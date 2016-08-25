@@ -18,13 +18,13 @@ namespace MouseEngine.Lowlevel
         void setWriter(WriterComponent w);
         int getID();
     }
-    
+
     /// <summary>
     /// The function database basically cointains a list of all the functions and phrases in the program.
     /// In debug mode, this function makes sure only one instance exist. These 2 lines can just be taken out
     /// if you have a good reason.
     /// </summary>
-    internal class FunctionDatabase: IEnumerable<Phrase>
+    internal class FunctionDatabase : IEnumerable<Phrase>
     {
         List<Phrase> globalFunctions;
         public Condition[] globalConditions;
@@ -76,7 +76,7 @@ namespace MouseEngine.Lowlevel
             return tmp;
         }
 
-        public LocalFunction AddLocalFunction(KindPrototype parent, Matcher m,
+        internal LocalFunction AddLocalFunction(KindPrototype parent, Matcher m,
             IEnumerable<Argument> args, IValueKind returnValue)
         {
             LocalFunction tmp = new LocalFunction(parent, null, m, returnValue, args, Databases.ids++, 0);
@@ -84,6 +84,24 @@ namespace MouseEngine.Lowlevel
             globalFunctions.Add(tmp);
 
             return tmp;
+        }
+
+        public Phrase addAttribute(IValueKind ParentKind, IValueKind returnKind, string name, int tmpID)
+        {
+            globalFunctions.Add(
+                new Phrase(
+                    new Argument[] { new Argument("parent", ParentKind) },
+                    returnKind,
+                    new MultiStringMatcher(new[] { "parent" }, name+" of", ""),
+                    new Opcode(opcodeType.aload, new ArgItemFromArguments(),
+                    new ArgumentValue(addressMode.constint,
+                    substitutionType.attrID, tmpID, ClassDatabase.integer),
+                    new ArgItemReturnValue()
+                    )
+                )
+            );
+
+            return globalFunctions[globalFunctions.Count - 1];
         }
     }
 
@@ -214,29 +232,6 @@ namespace MouseEngine.Lowlevel
     {
 
     }
-    /*
-    class ArbitrarySubstitutedPhrase : IByteable, IPhraseSub
-    {
-        Opcode[] codes;
-
-        public ArbitrarySubstitutedPhrase(params Opcode [] codes)
-        {
-            this.codes = codes;
-        }
-
-        public IUnsubstitutedBytes toBytes()
-        {
-            IUnsubstitutedBytes tmp = new DynamicUnsubstitutedBytes();
-            Queue<ArgumentValue> v = new Queue<ArgumentValue>();
-            ArgumentValue? returnType = null;
-            foreach (Opcode c in codes)
-            {
-                tmp.Combine(c.toBytes(v, ref returnType));
-            }
-            return tmp;
-        }
-    }
-    */
     /// <summary>
     /// A phrase with argument values and other stuff built in, a phrase with all the information needed to be turned into
     /// bytes!
@@ -257,7 +252,8 @@ namespace MouseEngine.Lowlevel
 
         public virtual IUnsubstitutedBytes toBytes()
         {
-            //THERE IS AN APPROXIMATE COPY OF THIS CODE IN IFMATCHER.CS, all changes should be made in both files.
+            //THERE IS AN APPROXIMATE COPY OF THIS CODE IN IFMATCHER.CS, all changes should
+            //be made in both files.
 
             Queue<ArgumentValue> argQue = new Queue<ArgumentValue>(argValues);
             
@@ -579,7 +575,7 @@ namespace MouseEngine.Lowlevel
             IEnumerable<Argument> arguments, int GlobalId, int localID)
             :base(parent, block, matcher, returnValue,
                  arguments.Select((x=>x.isSelfArgument()?x:Argument.fromStack(x.name,x.type)))
-                 .OrderBy((x=>x.isSelfArgument()?1:0))
+                 .OrderByDescending((x=>x.isSelfArgument()?1:0))
                  .ToArray(),
                  GlobalId,
                  new ConditionalOpcode((f=>f.getMode()==addressMode.stack),

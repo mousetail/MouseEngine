@@ -276,7 +276,7 @@ namespace MouseEngine
 
                     isGlobal = false; //If it contains this or me, it's a local function
 
-                    arguments.Add(Argument.getSelf(eobj.getKind()));
+                    arguments.Add(Argument.getSelf((KindPrototype)eobj));
                 }
                 else
                 {

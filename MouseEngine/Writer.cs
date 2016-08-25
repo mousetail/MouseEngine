@@ -33,7 +33,8 @@ namespace MouseEngine.Lowlevel
         endCondition,
         conditionDestination,
         localID,
-        numArguments
+        numArguments,
+        attrID
     }
     enum MemoryType : byte
     {
@@ -129,7 +130,7 @@ namespace MouseEngine.Lowlevel
 
         internal Range getRange()
         {
-            return new Range(memoryPosition, memoryPosition + getSize());
+            return new Range(memoryPosition, memoryPosition + getSize() - 1);
         }
 
         public bool intersects(WriterComponent other)
@@ -262,6 +263,7 @@ namespace MouseEngine.Lowlevel
         //so attributes from parent classes come before attributes of child classes.
         //The first attribibute is the base/type
         Prototype obj;
+        int size;
 
         public ObjectWriter(Prototype obj)
         {
@@ -276,7 +278,11 @@ namespace MouseEngine.Lowlevel
 
         public override int getSize()
         {
-            return obj.getPossibleAttributes().Count * 4 + 4;
+            if (size==0) {
+                size=obj.getPossibleAttributes().Count * 4 + 8;
+            }
+
+            return size;
         }
 
         public override IUnsubstitutedBytes tobytes()
@@ -284,7 +290,7 @@ namespace MouseEngine.Lowlevel
             DynamicUnsubstitutedBytes bit = new DynamicUnsubstitutedBytes();
 
             bit.WriteSlice(0, new byte[] { 0x7B, 0xFF, 0xEE, 0xBB,
-                                           0,    0,    0,    0});
+                                              0,    0,    0,    0});
 
             bit.addSubstitution(new Substitution(4, substitutionType.WriterRef, substitutionRank.Normal, obj.getParent().getID()));
 
@@ -292,7 +298,7 @@ namespace MouseEngine.Lowlevel
             foreach (var b in obj.getPossibleAttributes().Values)
             {
                 I32Convertable value = obj.getSpecificAttribute( b.name);
-                bit.Combine(value.to32bits(), (int)b.pos+4);
+                bit.Combine(value.to32bits(), (int)b.pos*4);
             }
 
             return bit;
@@ -311,6 +317,8 @@ namespace MouseEngine.Lowlevel
         Databases dtbs;
         int stringID;
 
+        int size;
+
         public override int getID()
         {
             return parent.getID();
@@ -327,7 +335,11 @@ namespace MouseEngine.Lowlevel
 
         public override int getSize()
         {
-            return 16+4*parent.getFunctions().Count;
+            if (size == 0)
+            {
+                size= 16 + 4 * parent.getFunctions().Count;
+            }
+            return size;
         }
 
         public override IUnsubstitutedBytes tobytes()
@@ -361,6 +373,8 @@ namespace MouseEngine.Lowlevel
                 bytes.WriteSlice(b.localID * 4, new byte[4]);
                 bytes.addSubstitution(new Substitution(b.localID * 4, substitutionType.WriterRef, substitutionRank.Normal, b.getID()));
             }
+
+            size = 0;
 
             return bytes;
         }
@@ -446,17 +460,7 @@ namespace MouseEngine.Lowlevel
             ExistingComponents = new List<WriterComponent>();
             Header h = new Header();
             ExistingComponents.Add(h);
-            foreach (Phrase f in fdtb)
-            {
-                if (f is Function)
-                {
-                    Components.Add(new FunctionWriter((Function)f, ((Function)f).ToString()));
-                    if (((Function)f).match("start game"))
-                    {
-                        startfunction = (FunctionWriter)Components[Components.Count-1];
-                    }
-                }
-            }
+            
 
             KindPrototype kind=null;
 
@@ -471,6 +475,18 @@ namespace MouseEngine.Lowlevel
                     throw new Errors.OpcodeFormatError("The type 'kind' should be the first kind in the list, was "+b.getName());
                 }
                 Components.Add(new TypeWriter(b, kind, dtbs));
+            }
+
+            foreach (Phrase f in fdtb)
+            {
+                if (f is Function)
+                {
+                    Components.Add(new FunctionWriter((Function)f, ((Function)f).ToString()));
+                    if (((Function)f).match("start game"))
+                    {
+                        startfunction = (FunctionWriter)Components[Components.Count - 1];
+                    }
+                }
             }
 
             foreach (ItemPrototype b in cdtb.existingObjects.Values)
@@ -641,6 +657,26 @@ namespace MouseEngine.Lowlevel
                     }
 
                     break;
+                case substitutionType.attrID:
+                    bool sucess=false;
+                    foreach (KeyValuePair<string, KindPrototype> p in cdtb.existingTypes)
+                    {
+                        KAttribute attribute = p.Value.getAttributeByID((int)what.data);
+                        if (attribute != null)
+                        {
+                            input.WriteSlice(what.position, toBytes((int)attribute.pos));
+                            Console.WriteLine("sucessuflly wrote attrID at " + what.position.ToString()+
+                                " attr="+attribute.pos.ToString())
+                                ;
+                            sucess = true;
+                        }
+                    }
+                    if (!sucess)
+                    {
+                        throw new Errors.IDMismatchException("No attribute with id " + what.data.ToString());
+                    }
+                    break;
+                    
             }
         }
         static public byte[] toBytes(int k)

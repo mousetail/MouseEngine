@@ -162,7 +162,7 @@ namespace MouseEngine
                         int lastID;
                         if (k.getParent() == null)
                         {
-                            lastID = 0;
+                            lastID = 2;
                         }
                         else
                         {
@@ -174,7 +174,7 @@ namespace MouseEngine
                             if (b.owner== k)
                             {
                                 b.pos = lastID;
-                                lastID += 4;
+                                lastID += 1;
                             }
                         }
                         k.nextID = lastID;
@@ -532,6 +532,9 @@ namespace MouseEngine
         public int? pos;
         public IValueKind kind;
         public KindPrototype owner;
+        internal readonly int id;
+
+        private static int globalIds=0;
 
         public KAttribute (string name, IValueKind kind, bool defined, KindPrototype owner)
         {
@@ -540,6 +543,7 @@ namespace MouseEngine
             this.owner = owner;
             this.kind = kind;
             pos = null;
+            id = globalIds++;
         }
     }
 
@@ -553,12 +557,15 @@ namespace MouseEngine
         public int nextID;
         bool locked;
 
+        Databases dtbs;
+
         List<LocalFunction> localFunctions = new List<LocalFunction>();
 
         public KindPrototype(ClassDatabase dtb, string name, bool locked):base(dtb, name)
         {
             subAttributes = new Dictionary<string, KAttribute>();
             this.locked = locked;
+            this.dtbs = dtb.databases;
         }
 
         public KindPrototype(ClassDatabase dtb, string name): this(dtb, name, false)
@@ -640,11 +647,16 @@ namespace MouseEngine
             if (type == null)
             {
                 throw new NullReferenceException("Type can not be null");
-            }
+            } else
 #endif
+            if (parent != null && parent.getPossibleAttributes().ContainsKey("name"))
+            {
+                throw new Errors.ItemMatchException("This attrubute is allready defined somewhere else");
+            }
             if (!subAttributes.ContainsKey(name))
             {
                 subAttributes[name] = new KAttribute(name, type, defined, this);
+                dtbs.fdtb.addAttribute(this, type, name, subAttributes[name].id);
             }
             else if (subAttributes[name].kind == type)
             {
@@ -724,6 +736,18 @@ namespace MouseEngine
             {
                 return false;
             }
+        }
+
+        internal KAttribute getAttributeByID(int data)
+        {
+            foreach (KAttribute k in subAttributes.Values)
+            {
+                if (k.id == data){
+                    return k;
+                }
+            }
+
+            return null;
         }
     }
 
