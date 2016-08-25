@@ -587,7 +587,7 @@ namespace MouseEngine
                 Parentfuncs = new List<LocalFunction>();
             }
 
-            int lastIndex = 4; //First 4 places are reserved for metadata
+            int lastIndex = 4+Parentfuncs.Count; //First 4 places are reserved for metadata
 
             for (int i = 0; i < localFunctions.Count; i++)
             {

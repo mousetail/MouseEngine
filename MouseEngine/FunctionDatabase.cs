@@ -157,7 +157,7 @@ namespace MouseEngine.Lowlevel
 
         internal Argument[] arguments;
         protected Matcher matcher;
-        internal Opcode[] codes;
+        internal IOpcode[] codes;
     
         //int stackArguments = 0;
 
@@ -176,7 +176,7 @@ namespace MouseEngine.Lowlevel
         /// <param name="matcher">What matcher is used to test wheter the phrase applies? Ususally a multi string
         /// matcher, with argnames matching the names of the arguments.</param>
         /// <param name="opcodes">The opcode objects that make up the body of the phrase.</param>
-        public Phrase(Argument[] args, IValueKind returnType, Matcher matcher, params Opcode[] opcodes)
+        public Phrase(Argument[] args, IValueKind returnType, Matcher matcher, params IOpcode[] opcodes)
         {
             arguments = args;
             this.matcher = matcher;
@@ -264,7 +264,7 @@ namespace MouseEngine.Lowlevel
             List<byte> tmp=new List<byte>();
             List<Substitution> substitutions=new List<Substitution>();
             ArgumentValue? returnValue = this.returnValue;
-            foreach (Opcode a in parent.codes)
+            foreach (IOpcode a in parent.codes)
             {
                 IUnsubstitutedBytes b = a.toBytes(argQue,ref returnValue);
                 foreach (Substitution sub in b.substitutions)
@@ -484,7 +484,7 @@ namespace MouseEngine.Lowlevel
         }
 
         protected Function(Prototype parent, CodeBlock code, Matcher matcher, IValueKind returnValue,
-            Argument[] arguments, int id, params Opcode[] opcodes):
+            Argument[] arguments, int id, params IOpcode[] opcodes):
                 base(arguments, returnValue, matcher, opcodes)
         {
             inside = code;
@@ -582,6 +582,15 @@ namespace MouseEngine.Lowlevel
                  .OrderBy((x=>x.isSelfArgument()?1:0))
                  .ToArray(),
                  GlobalId,
+                 new ConditionalOpcode((f=>f.getMode()==addressMode.stack),
+                    new Opcode[]
+                    {
+                        new Opcode(opcodeType.stkcopy, new ArgumentValue(addressMode.constint, 1))
+                    },
+                    new Opcode(opcodeType.copy, new ArgItemFromArguments(true),
+                        new ArgumentValue(addressMode.stack))
+                 
+                 ),
                  new Opcode(opcodeType.aload, new ArgItemFromArguments(),
                      new ArgumentValue(addressMode.constint, 1),
                      new ArgumentValue(addressMode.stack)),
@@ -600,11 +609,7 @@ namespace MouseEngine.Lowlevel
 
         internal override int? substitute(Substitution s)
         {
-            if (s.type == substitutionType.numArguments)
-            {
-                return arguments.Length - 1;
-            }
-            else if (s.type == substitutionType.localID){
+            if (s.type == substitutionType.localID){
                 return localID;
             }
             return base.substitute(s);
@@ -615,6 +620,41 @@ namespace MouseEngine.Lowlevel
     {
         IUnsubstitutedBytes toBytes(Queue<ArgumentValue> input, ref ArgumentValue? returnValue);
         
+    }
+
+    class ConditionalOpcode: IOpcode
+    {
+        IOpcode[] subOpcodes;
+        IOpcode[] elseCodes;
+        Func<ArgumentValue, bool> condition;
+
+        public ConditionalOpcode(Func<ArgumentValue, bool> condition, IOpcode[] opcodes,
+            params IOpcode[] elseCodes)
+        {
+            this.condition = condition;
+            this.subOpcodes = opcodes;
+            this.elseCodes = elseCodes;
+        }
+
+        public ConditionalOpcode(Func<ArgumentValue, bool> condition,
+            params IOpcode[] codes): this(condition, codes, new IOpcode[] { })
+        {
+
+        }
+
+
+        public IUnsubstitutedBytes toBytes(Queue<ArgumentValue> input, ref ArgumentValue? returnValue)
+        {
+            IOpcode[] codes = condition(input.Peek()) ? subOpcodes : elseCodes;
+
+            IUnsubstitutedBytes b = new DynamicUnsubstitutedBytes();
+            foreach (IOpcode c in codes)
+            {
+                b.Combine(c.toBytes(input, ref returnValue));
+            }
+            return b;
+
+        }
     }
 
 
@@ -681,7 +721,7 @@ namespace MouseEngine.Lowlevel
             List<ArgumentValue> args = new List<ArgumentValue>();
             ArgumentValue current;
 
-            for (int i=0; i<existingValues.Length; i++)
+            for (int i = 0; i < existingValues.Length; i++)
             {
                 if (existingValues[i] is ArgumentValue)
                 {
@@ -700,12 +740,24 @@ namespace MouseEngine.Lowlevel
                             "You either didn't give a return value to a object that required it, or 2 opcodes requested one.");
                     }
                 }
+                else if (existingValues[i] is ArgItemFromArguments)
+                {
+                    if (((ArgItemFromArguments)existingValues[i]).noPop)
+                    {
+                        current = values.Peek();
+                    }
+                    else
+                    {
+                        current = values.Dequeue();
+                    }
+                }
                 else
                 {
-
-                    current = values.Dequeue();
-
+                    throw new Errors.OpcodeFormatError("Unkown implementation of IArgItem: " +
+                        existingValues[i].ToString());
                 }
+
+
                 args.Add(current);
             }
             bytes.AddRange(makeaddrict(args.ToArray()));

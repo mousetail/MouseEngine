@@ -430,8 +430,7 @@ namespace MouseEngine
         /// The block things are written to.
         /// </summary>
         CodeBlock block;
-
-
+        
         /// <summary>
         /// The various databeses that are needed for methods
         /// </summary>
@@ -483,13 +482,24 @@ namespace MouseEngine
             cdtb = databases.cdtb;
             sdtb = databases.sdtb;
             indent = new IndentationManager(lastindentation);
+
+            int offset = f is LocalFunction ? 1 : 0;
+
             foreach (Argument a in f.arguments)
             {
-                locals[a.name] = new LocalVariable(locals.Count, a.type);
+                if (!a.isSelfArgument())
+                {
+                    locals[a.name] = new LocalVariable(locals.Count+offset, a.type);
+                }
             }
 
+            if (f is LocalFunction) {
+                Argument selfArgument = f.arguments.First((x => x.isSelfArgument()));
+                locals[selfArgument.name]=new LocalVariable(0, selfArgument.type);
+            }
+#if DEBUG
             Console.WriteLine("Locals are: " + locals.toAdvancedString());
-
+#endif
             block = new CodeBlock();
         }
 
@@ -509,7 +519,6 @@ namespace MouseEngine
             }
             nested = new CodeParser(cdtb, fdtb, sdtb, indent, locals);
             internalBlock.addIfRange(internalBlock.Count, internalBlock.Count);
-
         }
 
         List<string> parseParts=new List<string>();
@@ -530,10 +539,7 @@ namespace MouseEngine
         {
             bool finishInternal = false;
             bool doEsle = false;
-
             
-
-
             if (nested != null)
             {
                 pStatus stat= nested.Parse(line, linenumber);
@@ -790,6 +796,14 @@ namespace MouseEngine
 
         public ArgumentValue evalPhrase(Phrase matchedExpression, CodeBlock placeToWriteTo, bool useOutput)
         {
+            //I store this all mods in a special block,
+            //because I can't predict failure
+            //and in case types arn't correct
+            //I need to not do anything and return
+            //so I store in tmpBlock, and add it
+            //to the main block on sucess
+            CodeBlock tmpBlock = new CodeBlock();
+            
             ArgumentValue returnValue;
             if (matchedExpression.getReturnType()== null || !useOutput){
                 returnValue = ArgumentValue.Zero;
@@ -802,7 +816,7 @@ namespace MouseEngine
             Stack<ArgumentValue> argValues = new Stack<ArgumentValue>();
             foreach (Argument v in matchedExpression.arguments.Reverse())
             {
-                ArgumentValue t = EvalExpression(args[v.name]);
+                ArgumentValue t = EvalExpression(args[v.name], tmpBlock);
 
                 if (!v.type.isParent(t.getKind()))
                 {
@@ -817,7 +831,7 @@ namespace MouseEngine
 
                     if (t.getMode() != addressMode.stack)
                     {
-                        placeToWriteTo.add(Phrase.push.toSubstituedPhrase(new ArgumentValue[] { t }, null));
+                        tmpBlock.add(Phrase.push.toSubstituedPhrase(new ArgumentValue[] { t }, null));
                     }
                 }
                 else
@@ -825,7 +839,10 @@ namespace MouseEngine
                     argValues.Push(t);
                 }
             }
-            placeToWriteTo.add(matchedExpression.toSubstituedPhrase(argValues, returnValue));
+            tmpBlock.add(matchedExpression.toSubstituedPhrase(argValues, returnValue));
+
+            placeToWriteTo.add(tmpBlock);
+
             return returnValue;
         }
 
@@ -893,6 +910,20 @@ namespace MouseEngine
 
     struct ArgItemFromArguments: IArgItem, IConditionArgValue
     {
+        public bool noPop;
+
+        /// <summary>
+        /// Special function that can be used te decide whether to
+        /// remove a argument from the arguments list at compile
+        /// time.
+        /// never set noPop for stack arguments, since they are
+        /// allways invalidiated after a single use.
+        /// </summary>
+        /// <param name="noPop"></param>
+        public ArgItemFromArguments(bool noPop)
+        {
+            this.noPop = noPop;
+        }
     }
 
     struct ArgumentValue: IArgItem

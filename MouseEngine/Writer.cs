@@ -213,6 +213,7 @@ namespace MouseEngine.Lowlevel
             tmp.Add(0xC1);
             tmp.Add(0x04);
             tmp.Add((byte)func.getLocalsLength()); //probably should do something to prevent overflow.
+            //The f above will fail if a function uses over 256 (approx) locals 
             tmp.Add(0x00);
             tmp.Add(0x00);
 
