@@ -369,7 +369,7 @@ namespace MouseEngine
         {
             if (value == null)
             {
-                throw new ArgumentException("Attempt to set a property to null");
+                throw new Errors.TypeMismatchException("Attempt to set a property to null");
             }
             else if (!getPossibleAttributes().ContainsKey(name))
             {

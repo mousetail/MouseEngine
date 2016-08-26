@@ -219,7 +219,7 @@ namespace MouseEngine.Lowlevel
 
         public override string ToString()
         {
-            return GetType().Name + ": " + matcher.ToString();
+            return GetType().Name + ": " + matcher.ToString()+(returnType!=null?"==>"+returnType.ToString():"");
         }
 
         internal virtual int? substitute(Substitution s)

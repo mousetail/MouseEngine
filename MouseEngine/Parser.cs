@@ -204,7 +204,8 @@ namespace MouseEngine
                                                           new MultiStringMatcher(nameKind, "An ", " is a ", ""));
         static Matcher NewAttribute = new MultiStringMatcher(nameKind, "Make property ", " of kind ", "");
         static Matcher GlobalFunction = new MultiStringMatcher(functionname, "To ", ":");
-        static Matcher GlobalReturnFunctin = new MultiStringMatcher(new[] { "kind", "args" }, "To decide what ", " is ","");
+        static Matcher GlobalReturnFunctin = new MultiStringMatcher(new[] { "kind", "args" },
+            "To decide what ", " is ",":");
         static Matcher ArgumentMatcher = new orMatcher(
             new MultiStringMatcher(nameKind, "", ", a", ""),
             new MultiStringMatcher(nameKind, "", ", an", "")
@@ -379,7 +380,12 @@ namespace MouseEngine
                     return pStatus.Finished;
                 }
 
-                if (PropertyDefinition.match(strippedLine))
+                else if (GlobalFunction.match(strippedLine))
+                {
+                    startLines[linenumber] = parseFunctionDefinition(strippedLine);
+                    internalParser = new DummyParser(indent);
+                }
+                else if (PropertyDefinition.match(strippedLine))
                 {
                     v = PropertyDefinition.getArgs();
                     eobj.setAttr(v["property"], dtb.ParseAnything(v["value"]));
@@ -389,11 +395,6 @@ namespace MouseEngine
                     v = NewAttribute.getArgs();
                     ((KindPrototype)eobj).MakeAttribute((string)v["Name"], dtb.getKindAny( (string)v["kind"], false), true);
 
-                }
-                else if (GlobalFunction.match(strippedLine))
-                {
-                    startLines[linenumber]= parseFunctionDefinition(strippedLine);
-                    internalParser = new DummyParser(indent);
                 }
                 else
                 {

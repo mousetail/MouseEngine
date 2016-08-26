@@ -244,7 +244,7 @@ namespace MouseEngine.Lowlevel
 
         public override string ToString()
         {
-            return "Function: " + func.ToString().shorten(60);
+            return "Function: " + func.ToString().shorten(80);
         }
 
 
@@ -292,12 +292,13 @@ namespace MouseEngine.Lowlevel
             bit.WriteSlice(0, new byte[] { 0x7B, 0xFF, 0xEE, 0xBB,
                                               0,    0,    0,    0});
 
-            bit.addSubstitution(new Substitution(4, substitutionType.WriterRef, substitutionRank.Normal, obj.getParent().getID()));
+            bit.addSubstitution(new Substitution(4, substitutionType.WriterRef, substitutionRank.Normal,
+                obj.getParent().getID()));
 
 
             foreach (var b in obj.getPossibleAttributes().Values)
             {
-                I32Convertable value = obj.getSpecificAttribute( b.name);
+                I32Convertable value = obj.getSpecificAttribute(b.name);
                 bit.Combine(value.to32bits(), (int)b.pos*4);
             }
 
