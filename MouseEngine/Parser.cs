@@ -23,11 +23,13 @@ namespace MouseEngine
         BlockParser currentBlock;
         Databases databases;
         Dictionary<int, Function> startLines=new Dictionary<int, Function>();
+        IndentationManager manager = new IndentationManager();
+
         public Parser()
         {
             databases = Databases.getDefault();
 
-            currentBlock = new BlockParser(databases);
+            currentBlock = new BlockParser(databases, manager);
         }
         public pStatus Parse(string line, int linenumber)
         {
@@ -40,7 +42,7 @@ namespace MouseEngine
                     {
                         startLines[pair.Key] = pair.Value;
                     }
-                    currentBlock = new BlockParser(databases);
+                    currentBlock = new BlockParser(databases, manager);
                     result=currentBlock.Parse(line, linenumber);
                 }
             }
@@ -82,7 +84,6 @@ namespace MouseEngine
         //DATA USED FOR PARSE 2
         Function key;
         CodeParser Phate2Block;
-        int lastindentation = 0;
 
         public pStatus Parse2(string line, int linenumber)
         {
@@ -97,7 +98,6 @@ namespace MouseEngine
                 {
                     key.setBlock(Phate2Block.getBlock());
                     Phate2Block = null;
-
                 }
                 else
                 {
@@ -107,13 +107,12 @@ namespace MouseEngine
 
             if (startLines.ContainsKey(linenumber))
             {
-                Phate2Block = new CodeParser(databases, startLines[linenumber], lastindentation);
+                manager.clear();
+                manager.expect(true, false, false);
+                manager.doIndentation(line);
+                Phate2Block = new CodeParser(databases, startLines[linenumber], manager);
                 key = startLines[linenumber];
 
-            }
-            else
-            {
-                lastindentation = StringUtil.getIndentation(line);
             }
             return pStatus.Working;
         }
@@ -139,56 +138,92 @@ namespace MouseEngine
         /// <summary>
         /// Used to check the when the function is done or indentation has become invalid
         /// </summary>
-        int indentation;
-        bool indented = false;
-        int oldindentation;
+        Stack<int> indentations;
 
-        public IndentationManager(IndentationManager indentation1)
+        expectIndType expectation=expectIndType.indent | expectIndType.dedent | expectIndType.stay;
+        
+        [Flags] enum expectIndType
         {
-            oldindentation = indentation1.indentation;
-            indentation = oldindentation;
+            noOptions=0,
+            indent=1,
+            dedent=2,
+            stay=4
         }
 
-        public IndentationManager(int lastIndentation)
+        public IndentationManager()
         {
-            oldindentation = lastIndentation;
-            indentation = lastIndentation;
+            indentations = new Stack<int>(new [] { 0 });
         }
 
-        internal string doIndentation(string line)
+        internal int doIndentation(string line)
         {
-            int newindentation = StringUtil.getIndentation(line);
-            if (!indented && newindentation > oldindentation)
+            int indentation = StringUtil.getIndentation(line);
+
+            int lastindentation = indentations.Peek();
+
+            if (indentation > lastindentation)
             {
-                indentation = newindentation;
-                indented = true;
+                if (expectation.HasFlag(expectIndType.indent))
+                {
+                    indentations.Push(indentation);
+                    return 1;
+                }
+                else
+                {
+                    throw new Errors.InvalidIncreaseIndent("you need to "+expectation.ToString());
+                }
             }
-            else if (newindentation > indentation)
+            else if (indentation < lastindentation)
             {
-                throw new Errors.InvalidIncreaseIndent("unexpected indent");
-            }
-            else if (!indented)
-            {
-                throw new Errors.InvalidDecreaseIndent("expected an indent");
-            }
-            else if (newindentation == oldindentation || !indented)
-            {
-                return null;
-            }
-            else if (newindentation < indentation)
-            {
-                throw new Errors.InvalidDecreaseIndent("a dedent didn't match the level of a previous indent of " + oldindentation.ToString());
-            }
-            else if (indentation == newindentation)
-            {
-                goto loopend;
+                if (expectation.HasFlag(expectIndType.dedent))
+                {
+                    indentations.Pop();
+                    if (indentations.Peek() < indentation)
+                    {
+                        throw new Errors.InvalidDecreaseIndent("doesn't match "+indentations.Peek().ToString());
+                    }
+                    return -1;
+
+                }
+                else
+                {
+                    throw new Errors.InvalidDecreaseIndent("No indentation allowed, need " + expectation.ToString());
+                }
             }
             else
             {
-                throw new Errors.IndentationError("Some error, I don't know ecactly");
+                if (expectation.HasFlag(expectIndType.stay))
+                {
+                    return 0;
+                }
+                else
+                {
+                    throw new Errors.IndentationError("You have to " + expectation.ToString());
+                }
             }
-            loopend:
-            return line.Substring(newindentation).Trim(StringUtil.whitespace);
+            
+        }
+
+        public void expect(bool up, bool down, bool stay)
+        {
+            expectation = expectIndType.noOptions;
+            if (up)
+            {
+                expectation |= expectIndType.indent;
+            }
+            if (down)
+            {
+                expectation |= expectIndType.dedent;
+            }
+            if (stay)
+            {
+                expectation |= expectIndType.stay;
+            }
+        }
+
+        internal void clear()
+        {
+            indentations = new Stack<int>(new[] { 0 });
         }
     }
     class BlockParser: IParser
@@ -314,12 +349,12 @@ namespace MouseEngine
             }
         }
 
-        public BlockParser(Databases dtbs)
+        public BlockParser(Databases dtbs, IndentationManager manager)
         {
             started = false;
             this.dtbs = dtbs;
             dtb = dtbs.cdtb;
-            indent = new IndentationManager(0);
+            indent = manager;
         }
         public pStatus Parse(string line, int linenumber)
         {
@@ -340,12 +375,12 @@ namespace MouseEngine
             {
                 if (ObjectFirstLine.match(line))
                 {
-                    
                     v = ObjectFirstLine.getArgs();
-                    eobj = dtb.getObject((string)v["Name"],true);
-                    eobj.setParent(dtb.getKind((string)v["kind"],false));
+                    eobj = dtb.getObject(v["Name"],true);
+                    eobj.setParent(dtb.getKind(v["kind"],false));
                     tobj = ObjType.Object;
                     started = true;
+                    indent.expect(true, false, false);
                 }
                 else if (KindDefinition.match(line))
                 {
@@ -356,6 +391,7 @@ namespace MouseEngine
                         eobj.setParent(dtb.getKind((string)v["kind"],false));
                         tobj = ObjType.Kind;
                         started = true;
+                        indent.expect(true, false, false);
                     }
                     else
                     {
@@ -374,8 +410,11 @@ namespace MouseEngine
             }
             else
             {
-                string strippedLine = indent.doIndentation(line);
-                if (strippedLine == null)
+                int change = indent.doIndentation(line);
+
+                string strippedLine = line.Trim(StringUtil.whitespace);
+
+                if (change == -1)
                 {
                     return pStatus.Finished;
                 }
@@ -384,17 +423,24 @@ namespace MouseEngine
                 {
                     startLines[linenumber] = parseFunctionDefinition(strippedLine);
                     internalParser = new DummyParser(indent);
+
+                    indent.expect(true, false, false);
                 }
                 else if (PropertyDefinition.match(strippedLine))
                 {
                     v = PropertyDefinition.getArgs();
                     eobj.setAttr(v["property"], dtb.ParseAnything(v["value"]));
+
+
+                    indent.expect(false, true, true);
                 }
                 else if (tobj == ObjType.Kind && NewAttribute.match(strippedLine))
                 {
                     v = NewAttribute.getArgs();
                     ((KindPrototype)eobj).MakeAttribute((string)v["Name"], dtb.getKindAny( (string)v["kind"], false), true);
 
+
+                    indent.expect(false, true, true);
                 }
                 else
                 {
@@ -406,6 +452,9 @@ namespace MouseEngine
 
                 }
             }
+
+            
+
             return pStatus.Working;
 
 
@@ -463,7 +512,7 @@ namespace MouseEngine
             fdtb = dtbs.fdtb;
             cdtb = dtbs.cdtb;
             sdtb = dtbs.sdtb;
-            indent = new IndentationManager(oldIndentation);
+            indent = oldIndentation;
             block = new CodeBlock();
         }
 
@@ -472,17 +521,17 @@ namespace MouseEngine
             this.cdtb = cdtb;
             this.sdtb = sdtb;
             this.fdtb = fdtb;
-            indent = new IndentationManager(indentation);
+            indent = indentation;
             locals = loc;
             block = new CodeBlock();
         }
 
-        public CodeParser(Databases databases, Function f, int lastindentation)
+        public CodeParser(Databases databases, Function f, IndentationManager lastIndentation)
         {
             fdtb = databases.fdtb;
             cdtb = databases.cdtb;
             sdtb = databases.sdtb;
-            indent = new IndentationManager(lastindentation);
+            indent = lastIndentation;
 
             int offset = f is LocalFunction ? 1 : 0;
 
@@ -510,6 +559,7 @@ namespace MouseEngine
             SubstitutedCondition d = EvalCondition(condition);
             d.invert();
             internalBlock.add(d);
+            indent.expect(true, false, false);
         }
 
         public void setUpCondition()
@@ -560,11 +610,13 @@ namespace MouseEngine
             }
 
 
-            string shortString = indent.doIndentation(line);
-            if (shortString == null)
+            int part = indent.doIndentation(line);
+            if (part < 0)
             {
                 return pStatus.Finished;
             }
+
+            string shortString = line.Trim(StringUtil.whitespace);
 
             if (finishInternal)
             {
@@ -622,6 +674,8 @@ namespace MouseEngine
                         block.add(Phrase.assign.toSubstituedPhrase(new[] { argva, new ArgumentValue(addressMode.frameint, getFramePos(lvar.index)) },
                             null));
                     }
+
+                    indent.expect(false, true, true);
                 }
                 else
                 {
@@ -630,6 +684,8 @@ namespace MouseEngine
                     new ArgumentValue(addressMode.frameint, getFramePos(locals.Count)),
                     }, null));
                     locals.Add(args["name"], new LocalVariable(locals.Count, k.getKind()));
+
+                    indent.expect(false, true, true);
                 }
             }
             else if (ifMatcher.match(shortString))
@@ -655,6 +711,7 @@ namespace MouseEngine
             {
 
                 EvalExpression(shortString, false);
+                indent.expect(false, true, true);
             }
             return pStatus.Working;
         }
@@ -1089,35 +1146,26 @@ namespace MouseEngine
 
     class DummyParser: IParser
     {
-        Stack<IndentationManager> indent;
+        IndentationManager indent;
+
+        int indentam = 0;
 
         public DummyParser(IndentationManager oldIndent)
         {
-            indent = new Stack<IndentationManager>();
-            indent.Push(new IndentationManager(oldIndent));
+            indent = oldIndent;
         }
 
         public pStatus Parse(string line, int linenumber)
         {
-            
-            string s = "";
-            try
+            //The basic idea of this function is to let the manager do it's thing, untill
+            //at the end, the indentation matches what we started with
+            //the manager nicely checks for errors, before we bother building the code
+            indentam += indent.doIndentation(line);
+            if (indentam == 0)
             {
-                IndentationManager m = indent.Peek();
-                s = m.doIndentation(line);
+                return pStatus.Finished;
             }
-            catch (Errors.InvalidIncreaseIndent)
-            {
-                indent.Push(new IndentationManager(indent.Peek()));
-            }
-            if (s == null)
-            {
-                indent.Pop();
-                if (indent.Count == 0)
-                {
-                    return pStatus.Finished;
-                }
-            }
+            indent.expect(true, true, true);
             return pStatus.Working;
         }
     }
